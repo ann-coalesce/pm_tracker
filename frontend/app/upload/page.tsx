@@ -32,7 +32,7 @@ export default function UploadPage() {
 
   const doUpload = async (file: File) => {
     if (!sel) return
-    setUploading(true); setUploadError(null)
+    setResult(null); setUploadError(null); setUploading(true)
     try {
       const res = await uploadReturns(sel.id, file)
       setResult({ type: res.errors.length > 0 ? 'error' : 'ok', data: res })
@@ -52,6 +52,7 @@ export default function UploadPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''  // reset so same file can be re-selected
     if (file) doUpload(file)
   }
 

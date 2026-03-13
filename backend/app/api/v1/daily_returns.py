@@ -77,6 +77,9 @@ async def upload_csv(
         raw_date = (row.get("date") or "").strip()
         raw_ret = (row.get("return_pct") or "").strip()
 
+        if not raw_date and not raw_ret:  # skip blank/trailing rows
+            continue
+
         try:
             d = date.fromisoformat(raw_date)
         except (ValueError, TypeError):
