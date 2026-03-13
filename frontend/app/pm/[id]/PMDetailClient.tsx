@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import StatusBadge, { STATUS_META } from '../../components/StatusBadge'
 import LineChart from '../../components/LineChart'
@@ -25,9 +25,15 @@ function standardizeCurve(navs: number[], leverage: number): number[] {
 }
 
 export default function PMDetailClient() {
-  const params = useParams()
   const router = useRouter()
-  const id = Array.isArray(params.id) ? params.id[0] : (params.id as string)
+  const [id, setId] = useState<string>('')
+
+  useEffect(() => {
+    // useParams() returns '_' in static export fallback pages.
+    // Read the real ID directly from the browser URL instead.
+    const parts = window.location.pathname.replace(/\/+$/, '').split('/')
+    setId(parts[parts.length - 1])
+  }, [])
 
   const [pm, setPm] = useState<PM | null>(null)
   const [metrics, setMetrics] = useState<PMMetrics | null>(null)
@@ -43,7 +49,7 @@ export default function PMDetailClient() {
   const [editModal, setEditModal] = useState(false)
 
   const load = () => {
-    if (!id || id === '_') return
+    if (!id) return
     setLoading(true); setError(null)
     Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id)])
       .then(([pmData, metricsData, curveData, logData]) => {
