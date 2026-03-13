@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,7 +16,6 @@ from app.schemas.daily_return import DailyReturnCreate, DailyReturnResponse, Upl
 router = APIRouter()
 
 ANOMALY_THRESHOLD = Decimal("0.5")
-GAP_WARN_DAYS = 7
 
 
 def _check_anomaly(return_pct: Decimal) -> bool:
@@ -37,16 +36,21 @@ async def _existing_dates(pm_id: uuid.UUID, db: AsyncSession) -> set[date]:
     return {row[0] for row in result.all()}
 
 
-def _check_gaps(dates: list[date]) -> list[str]:
-    warnings = []
-    sorted_dates = sorted(dates)
+async def _db_last_date(pm_id: uuid.UUID, db: AsyncSession) -> date | None:
+    result = await db.execute(
+        select(func.max(DailyReturn.date)).where(DailyReturn.pm_id == pm_id)
+    )
+    return result.scalar_one_or_none()
+
+
+def _find_gaps(sorted_dates: list[date]) -> list[date]:
+    missing = []
     for i in range(1, len(sorted_dates)):
-        delta = (sorted_dates[i] - sorted_dates[i - 1]).days
-        if delta > GAP_WARN_DAYS:
-            warnings.append(
-                f"日期 gap 超過 {GAP_WARN_DAYS} 天：{sorted_dates[i-1]} → {sorted_dates[i]}（相差 {delta} 天）"
-            )
-    return warnings
+        d = sorted_dates[i - 1] + timedelta(days=1)
+        while d < sorted_dates[i]:
+            missing.append(d)
+            d += timedelta(days=1)
+    return missing
 
 
 @router.post("/pms/{pm_id}/returns/upload-csv", response_model=UploadResult)
@@ -63,46 +67,70 @@ async def upload_csv(
     except UnicodeDecodeError:
         text = content.decode("latin-1")
 
-    existing = await _existing_dates(pm_id, db)
-
-    inserted = 0
-    skipped = 0
-    warnings: list[str] = []
-    errors: list[str] = []
-    to_insert: list[DailyReturn] = []
-    new_dates: list[date] = []
+    # --- parse CSV rows first, collect parse errors ---
+    rows: list[tuple[int, date, Decimal]] = []
+    parse_errors: list[str] = []
 
     reader = csv.DictReader(io.StringIO(text))
     for lineno, row in enumerate(reader, start=2):
         raw_date = (row.get("date") or "").strip()
         raw_ret = (row.get("return_pct") or "").strip()
 
-        # parse date
         try:
             d = date.fromisoformat(raw_date)
         except (ValueError, TypeError):
-            errors.append(f"第 {lineno} 行：日期格式錯誤（{raw_date!r}）")
+            parse_errors.append(f"第 {lineno} 行：日期格式錯誤（{raw_date!r}）")
             continue
 
-        # parse return_pct
         try:
             ret = Decimal(raw_ret)
         except (InvalidOperation, TypeError):
-            errors.append(f"第 {lineno} 行（{d}）：return_pct 格式錯誤（{raw_ret!r}）")
+            parse_errors.append(f"第 {lineno} 行（{d}）：return_pct 格式錯誤（{raw_ret!r}）")
             continue
 
-        # duplicate check
-        if d in existing:
-            skipped += 1
-            errors.append(f"第 {lineno} 行（{d}）：日期已存在，略過")
-            continue
+        rows.append((lineno, d, ret))
 
-        # anomaly flag
+    if parse_errors:
+        raise HTTPException(status_code=400, detail={"errors": parse_errors})
+
+    if not rows:
+        raise HTTPException(status_code=400, detail={"errors": ["CSV 無有效資料"]})
+
+    csv_dates = sorted({d for _, d, _ in rows})
+
+    # --- continuity check within CSV ---
+    missing = _find_gaps(csv_dates)
+    if missing:
+        missing_str = ", ".join(str(d) for d in missing)
+        raise HTTPException(
+            status_code=400,
+            detail={"errors": [f"缺少日期：{missing_str}"]},
+        )
+
+    # --- DB continuity check ---
+    last_db_date = await _db_last_date(pm_id, db)
+    if last_db_date is not None:
+        expected_start = last_db_date + timedelta(days=1)
+        if csv_dates[0] != expected_start:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "errors": [
+                        f"DB 最後日期為 {last_db_date}，CSV 應從 {expected_start} 開始"
+                        f"（目前 CSV 起始日期為 {csv_dates[0]}）"
+                    ]
+                },
+            )
+
+    # --- build records ---
+    warnings: list[str] = []
+    to_insert: list[DailyReturn] = []
+
+    for lineno, d, ret in rows:
         flag = None
         if _check_anomaly(ret):
             flag = "anomaly"
             warnings.append(f"第 {lineno} 行（{d}）：return_pct={ret} 超過 ±50%，標記 anomaly")
-
         to_insert.append(
             DailyReturn(
                 pm_id=pm_id,
@@ -112,20 +140,12 @@ async def upload_csv(
                 flag=flag,
             )
         )
-        existing.add(d)
-        new_dates.append(d)
-
-    # gap check across all new dates
-    if new_dates:
-        warnings.extend(_check_gaps(new_dates))
 
     for record in to_insert:
         db.add(record)
-    if to_insert:
-        await db.commit()
-    inserted = len(to_insert)
+    await db.commit()
 
-    return UploadResult(inserted=inserted, skipped=skipped, warnings=warnings, errors=errors)
+    return UploadResult(inserted=len(to_insert), skipped=0, warnings=warnings, errors=[])
 
 
 @router.post("/pms/{pm_id}/returns", response_model=DailyReturnResponse, status_code=201)
@@ -139,6 +159,15 @@ async def create_return(
     existing = await _existing_dates(pm_id, db)
     if payload.date in existing:
         raise HTTPException(status_code=400, detail=f"日期 {payload.date} 已存在")
+
+    last_db_date = await _db_last_date(pm_id, db)
+    if last_db_date is not None:
+        expected = last_db_date + timedelta(days=1)
+        if payload.date != expected:
+            raise HTTPException(
+                status_code=400,
+                detail=f"DB 最後日期為 {last_db_date}，應新增 {expected}（收到 {payload.date}）",
+            )
 
     flag = "anomaly" if _check_anomaly(payload.return_pct) else None
     record = DailyReturn(
