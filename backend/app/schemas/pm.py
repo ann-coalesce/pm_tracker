@@ -1,0 +1,66 @@
+import uuid
+from datetime import datetime, date
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, field_validator
+
+VALID_STATUSES = {"pipeline", "onboarding", "active", "alumni", "inactive"}
+
+
+class PMCreate(BaseModel):
+    name: str
+    strategy_type: Optional[str] = None
+    style: Optional[str] = None
+    max_capacity: Optional[Decimal] = None
+    current_aum: Decimal = Decimal("0")
+    leverage_target: Optional[Decimal] = None
+
+
+class PMUpdate(BaseModel):
+    name: Optional[str] = None
+    strategy_type: Optional[str] = None
+    style: Optional[str] = None
+    max_capacity: Optional[Decimal] = None
+    current_aum: Optional[Decimal] = None
+    leverage_target: Optional[Decimal] = None
+
+
+class PMStatusUpdate(BaseModel):
+    to_status: str
+    changed_by: str
+    reason: Optional[str] = None
+
+    @field_validator("to_status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        if v not in VALID_STATUSES:
+            raise ValueError(f"to_status must be one of {sorted(VALID_STATUSES)}")
+        return v
+
+
+class PMResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    strategy_type: Optional[str]
+    style: Optional[str]
+    status: str
+    max_capacity: Optional[Decimal]
+    current_aum: Optional[Decimal]
+    leverage_target: Optional[Decimal]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class PMStatusLogResponse(BaseModel):
+    id: uuid.UUID
+    pm_id: uuid.UUID
+    from_status: Optional[str]
+    to_status: str
+    changed_by: Optional[str]
+    changed_at: Optional[datetime]
+    reason: Optional[str]
+
+    model_config = {"from_attributes": True}
