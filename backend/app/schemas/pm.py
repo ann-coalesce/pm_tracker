@@ -15,6 +15,12 @@ class PMCreate(BaseModel):
     max_capacity: Optional[Decimal] = None
     current_aum: Decimal = Decimal("0")
     leverage_target: Optional[Decimal] = None
+    exposure_profile: Optional[str] = None
+    trading_horizon: Optional[str] = None
+    exchanges: Optional[list[str]] = None
+    gp_commitment: Optional[Decimal] = None
+    description: Optional[str] = None
+    contact_info: Optional[str] = None
 
 
 class PMUpdate(BaseModel):
@@ -24,6 +30,12 @@ class PMUpdate(BaseModel):
     max_capacity: Optional[Decimal] = None
     current_aum: Optional[Decimal] = None
     leverage_target: Optional[Decimal] = None
+    exposure_profile: Optional[str] = None
+    trading_horizon: Optional[str] = None
+    exchanges: Optional[list[str]] = None
+    gp_commitment: Optional[Decimal] = None
+    description: Optional[str] = None
+    contact_info: Optional[str] = None
 
 
 class PMStatusUpdate(BaseModel):
@@ -48,6 +60,12 @@ class PMResponse(BaseModel):
     max_capacity: Optional[Decimal]
     current_aum: Optional[Decimal]
     leverage_target: Optional[Decimal]
+    exposure_profile: Optional[str]
+    trading_horizon: Optional[str]
+    exchanges: Optional[list[str]]
+    gp_commitment: Optional[Decimal]
+    description: Optional[str]
+    contact_info: Optional[str]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 

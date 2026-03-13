@@ -13,7 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -40,6 +40,12 @@ class PM(Base):
     max_capacity: Mapped[float | None] = mapped_column(Numeric(20, 2))
     current_aum: Mapped[float | None] = mapped_column(Numeric(20, 2), default=0)
     leverage_target: Mapped[float | None] = mapped_column(Numeric(10, 4))
+    exposure_profile: Mapped[str | None] = mapped_column(String(50))
+    trading_horizon: Mapped[str | None] = mapped_column(String(20))
+    exchanges: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    gp_commitment: Mapped[float | None] = mapped_column(Numeric(20, 2))
+    description: Mapped[str | None] = mapped_column(Text)
+    contact_info: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

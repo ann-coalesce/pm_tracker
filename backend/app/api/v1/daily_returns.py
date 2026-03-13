@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.metrics import calculate_equity_curve, calculate_metrics, calculate_rolling_metrics
 from app.models.pm import DailyReturn, PM
 from app.schemas.daily_return import DailyReturnCreate, DailyReturnResponse, UploadResult
 
@@ -181,6 +182,66 @@ async def create_return(
     await db.commit()
     await db.refresh(record)
     return record
+
+
+async def _fetch_returns(
+    pm_id: uuid.UUID,
+    db: AsyncSession,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> list[tuple[date, Decimal]]:
+    stmt = select(DailyReturn.date, DailyReturn.return_pct).where(DailyReturn.pm_id == pm_id)
+    if start_date:
+        stmt = stmt.where(DailyReturn.date >= start_date)
+    if end_date:
+        stmt = stmt.where(DailyReturn.date <= end_date)
+    stmt = stmt.order_by(DailyReturn.date.asc())
+    result = await db.execute(stmt)
+    return [(row[0], Decimal(str(row[1]))) for row in result.all()]
+
+
+@router.get("/pms/{pm_id}/metrics")
+async def get_metrics(
+    pm_id: uuid.UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    risk_free_rate: float = Query(0.0),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_pm_or_404(pm_id, db)
+    returns = await _fetch_returns(pm_id, db, start_date, end_date)
+
+    if len(returns) < 2:
+        raise HTTPException(status_code=400, detail="資料不足，至少需要 2 筆")
+
+    metrics = calculate_metrics(returns, risk_free_rate)
+    rolling_90 = calculate_rolling_metrics(returns, 90, risk_free_rate)
+    rolling_180 = calculate_rolling_metrics(returns, 180, risk_free_rate)
+
+    return {
+        **metrics,
+        "track_record_start": str(metrics["track_record_start"]),
+        "track_record_end": str(metrics["track_record_end"]),
+        "rolling_sharpe_90d": [
+            {"date": str(p["date"]), "sharpe": p["sharpe"]} for p in rolling_90
+        ],
+        "rolling_sharpe_180d": [
+            {"date": str(p["date"]), "sharpe": p["sharpe"]} for p in rolling_180
+        ],
+    }
+
+
+@router.get("/pms/{pm_id}/equity-curve")
+async def get_equity_curve(
+    pm_id: uuid.UUID,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_pm_or_404(pm_id, db)
+    returns = await _fetch_returns(pm_id, db, start_date, end_date)
+    curve = calculate_equity_curve(returns)
+    return [{"date": str(p["date"]), "nav": p["nav"]} for p in curve]
 
 
 @router.get("/pms/{pm_id}/returns", response_model=list[DailyReturnResponse])
