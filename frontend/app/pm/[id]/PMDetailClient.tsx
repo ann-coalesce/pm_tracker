@@ -7,8 +7,8 @@ import LineChart from '../../components/LineChart'
 import UnderwaterChart from '../../components/UnderwaterChart'
 import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
-import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM } from '../../lib/api'
-import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate } from '../../lib/types'
+import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory } from '../../lib/api'
+import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory } from '../../lib/types'
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
@@ -30,21 +30,33 @@ export default function PMDetailClient() {
   const [metrics, setMetrics] = useState<PMMetrics | null>(null)
   const [curve, setCurve] = useState<EquityCurvePoint[]>([])
   const [statusLog, setStatusLog] = useState<PMStatusLog[]>([])
+  const [leverageHistory, setLeverageHistory] = useState<LeverageHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [returnType, setReturnType] = useState('actual')
   const [timeRange, setTimeRange] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
+
+  const [levFormOpen, setLevFormOpen] = useState(false)
+  const [levForm, setLevForm] = useState({ start_date: '', leverage: '', note: '' })
+  const [levSaving, setLevSaving] = useState(false)
+  const [levError, setLevError] = useState<string | null>(null)
   const [statusModal, setStatusModal] = useState(false)
   const [editModal, setEditModal] = useState(false)
+
+  const loadLevHistory = () => {
+    if (!id) return
+    getLeverageHistory(id).then(setLeverageHistory).catch(() => {})
+  }
 
   const load = () => {
     if (!id) return
     setLoading(true); setError(null)
-    Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id)])
-      .then(([pmData, metricsData, curveData, logData]) => {
+    Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id), getLeverageHistory(id)])
+      .then(([pmData, metricsData, curveData, logData, levData]) => {
         setPm(pmData); setMetrics(metricsData); setCurve(curveData); setStatusLog(logData)
+        setLeverageHistory(levData as LeverageHistory[])
         setLoading(false)
       })
       .catch(e => { setError(e.message); setLoading(false) })
@@ -150,7 +162,7 @@ export default function PMDetailClient() {
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #1f2937', paddingBottom: 4 }}>
-            {[['overview', 'Overview'], ['info', 'Info & Contact'], ['log', 'Status Log']].map(([t, l]) => (
+            {[['overview', 'Overview'], ['info', 'Info & Contact'], ['leverage', 'Leverage History'], ['log', 'Status Log']].map(([t, l]) => (
               <button key={t} style={tabSt(t)} onClick={() => setActiveTab(t)}>{l}</button>
             ))}
           </div>
@@ -268,6 +280,116 @@ export default function PMDetailClient() {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Leverage History Tab */}
+          {activeTab === 'leverage' && (
+            <div>
+              <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1f2937' }}>
+                      {['Start Date', 'End Date', 'Leverage', 'Note'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leverageHistory.length === 0 ? (
+                      <tr><td colSpan={4} style={{ padding: '20px 14px', color: '#6b7280', fontSize: 13 }}>No leverage history yet.</td></tr>
+                    ) : leverageHistory.map((row, i) => {
+                      const isCurrent = row.end_date === null
+                      return (
+                        <tr key={row.id} style={{ borderBottom: i < leverageHistory.length - 1 ? '1px solid #1f2937' : 'none', background: i % 2 === 0 ? '#111827' : '#0d1424' }}>
+                          <td style={{ padding: '10px 14px', color: '#d1d5db' }}>{row.start_date}</td>
+                          <td style={{ padding: '10px 14px' }}>
+                            {isCurrent
+                              ? <span style={{ color: '#10b981', fontWeight: 500 }}>present</span>
+                              : <span style={{ color: '#9ca3af' }}>{row.end_date}</span>
+                            }
+                          </td>
+                          <td style={{ padding: '10px 14px' }}>
+                            <span style={{ fontWeight: 700, color: '#f9fafb' }}>{Number(row.leverage).toFixed(1)}x</span>
+                            {isCurrent && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: '#10b981', background: '#10b98120', border: '1px solid #10b98140', borderRadius: 4, padding: '2px 7px' }}>current</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 14px', color: '#6b7280' }}>—</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {!levFormOpen ? (
+                <button
+                  onClick={() => { setLevFormOpen(true); setLevError(null); setLevForm({ start_date: '', leverage: '', note: '' }) }}
+                  style={{ width: '100%', padding: '10px', fontSize: 13, color: '#9ca3af', background: 'transparent', border: '1px dashed #374151', borderRadius: 8, cursor: 'pointer' }}>
+                  + Add Leverage Change
+                </button>
+              ) : (
+                <div style={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, padding: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f9fafb', marginBottom: 16 }}>New Leverage Period</div>
+
+                  {levError && (
+                    <div style={{ background: '#2a1515', border: '1px solid #ef444460', borderRadius: 6, padding: '8px 12px', marginBottom: 14, color: '#ef4444', fontSize: 12 }}>{levError}</div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>Start Date *</label>
+                      <input type="date" value={levForm.start_date} onChange={e => setLevForm(f => ({ ...f, start_date: e.target.value }))}
+                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: 6, padding: '7px 10px', color: '#f9fafb', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>New Leverage *</label>
+                      <input type="number" step="0.1" min="0.1" placeholder="e.g. 3.0" value={levForm.leverage} onChange={e => setLevForm(f => ({ ...f, leverage: e.target.value }))}
+                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: 6, padding: '7px 10px', color: '#f9fafb', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>Note</label>
+                      <input type="text" placeholder="e.g. Increased after strong Q1" value={levForm.note} onChange={e => setLevForm(f => ({ ...f, note: e.target.value }))}
+                        style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: 6, padding: '7px 10px', color: '#f9fafb', fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 12, color: '#9ca3af', background: '#1f2937', border: '1px solid #374151', borderRadius: 6, padding: '9px 12px', marginBottom: 16 }}>
+                    ⚠️ Adding a new leverage period will automatically close the current period and trigger a backfill of <code style={{ fontFamily: 'monospace', background: '#0f172a', padding: '1px 5px', borderRadius: 3, color: '#fbbf24' }}>std_return</code> for affected dates.
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={async () => {
+                        if (!levForm.start_date || !levForm.leverage) { setLevError('Start date and leverage are required'); return }
+                        setLevSaving(true); setLevError(null)
+                        try {
+                          await addLeverageHistory(id, {
+                            start_date: levForm.start_date,
+                            leverage: Number(levForm.leverage),
+                            ...(levForm.note.trim() ? { note: levForm.note.trim() } : {}),
+                          })
+                          setLevFormOpen(false)
+                          loadLevHistory()
+                        } catch (e) {
+                          setLevError(e instanceof Error ? e.message : 'Save failed')
+                        } finally {
+                          setLevSaving(false)
+                        }
+                      }}
+                      disabled={levSaving}
+                      style={{ background: levSaving ? '#1e3a5f' : '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 13, cursor: levSaving ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                      {levSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setLevFormOpen(false); setLevError(null) }}
+                      style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #374151', borderRadius: 6, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -78,6 +78,15 @@ export interface ReturnSource {
   note: string | null
 }
 
+export interface LeverageHistory {
+  id: string
+  pm_id: string
+  start_date: string
+  end_date: string | null
+  leverage: number
+  created_at: string | null
+}
+
 export interface UploadResult {
   inserted: number
   skipped: number

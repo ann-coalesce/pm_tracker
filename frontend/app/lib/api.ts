@@ -1,6 +1,6 @@
 import type {
   PM, PMCreate, PMUpdate, PMStatusUpdate,
-  PMMetrics, EquityCurvePoint, PMStatusLog, UploadResult,
+  PMMetrics, EquityCurvePoint, PMStatusLog, UploadResult, LeverageHistory,
 } from './types'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
@@ -79,6 +79,23 @@ export async function getPMEquityCurve(id: string, params?: {
 export async function getPMStatusLog(id: string): Promise<PMStatusLog[]> {
   const res = await fetch(`${BASE}/v1/pms/${id}/status-log`)
   return handleRes<PMStatusLog[]>(res)
+}
+
+export async function getLeverageHistory(pmId: string): Promise<LeverageHistory[]> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/leverage-history`)
+  return handleRes<LeverageHistory[]>(res)
+}
+
+export async function addLeverageHistory(
+  pmId: string,
+  data: { start_date: string; leverage: number; note?: string },
+): Promise<LeverageHistory> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/leverage-history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleRes<LeverageHistory>(res)
 }
 
 export async function uploadReturns(pmId: string, file: File): Promise<UploadResult> {
