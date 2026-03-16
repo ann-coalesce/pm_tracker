@@ -1,7 +1,10 @@
+import logging
 import math
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _get_leverage_for_date(leverage_history: list[dict], d: date) -> float:
@@ -80,10 +83,19 @@ def calculate_metrics(
     std_total_return = std_navs[-1] - 1.0
 
     # ── CAGR ──────────────────────────────────────────────────────
-    days_total = (dates[-1] - dates[0]).days or 1
+    days_total = n
     years = days_total / 365.0
     cagr = (navs[-1] ** (1 / years)) - 1 if years > 0 else 0.0
     std_cagr = (std_navs[-1] ** (1 / years)) - 1 if years > 0 else 0.0
+
+    import sys
+    print(
+        f"[DEBUG metrics] n={n} | total_return={total_return:.6f} "
+        f"| first={dates[0]} last={dates[-1]} | days={days_total} "
+        f"| years={years:.4f} | final_nav={navs[-1]:.6f} "
+        f"| cagr={cagr:.6f}  (= {navs[-1]:.6f}^(1/{years:.4f}) - 1)",
+        file=sys.stderr, flush=True,
+    )
 
     # ── Volatility ────────────────────────────────────────────────
     mean = sum(rets) / n
