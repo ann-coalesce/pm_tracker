@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.metrics import calculate_equity_curve, calculate_metrics, calculate_rolling_metrics
-from app.models.pm import DailyReturn, PM
+from app.models.pm import DailyReturn, PM, PMLeverageHistory
 from app.schemas.daily_return import DailyReturnCreate, DailyReturnResponse, UploadResult
 
 router = APIRouter()
@@ -187,6 +187,20 @@ async def create_return(
     return record
 
 
+async def _fetch_leverage_history(pm_id: uuid.UUID, db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(
+            PMLeverageHistory.start_date,
+            PMLeverageHistory.end_date,
+            PMLeverageHistory.leverage,
+        ).where(PMLeverageHistory.pm_id == pm_id)
+    )
+    return [
+        {"start_date": row[0], "end_date": row[1], "leverage": row[2]}
+        for row in result.all()
+    ]
+
+
 async def _fetch_returns(
     pm_id: uuid.UUID,
     db: AsyncSession,
@@ -217,7 +231,8 @@ async def get_metrics(
     if len(returns) < 2:
         raise HTTPException(status_code=400, detail="資料不足，至少需要 2 筆")
 
-    metrics = calculate_metrics(returns, risk_free_rate)
+    lev_hist = await _fetch_leverage_history(pm_id, db)
+    metrics = calculate_metrics(returns, risk_free_rate, leverage_history=lev_hist)
     rolling_90 = calculate_rolling_metrics(returns, 90, risk_free_rate)
     rolling_180 = calculate_rolling_metrics(returns, 180, risk_free_rate)
 
@@ -243,8 +258,9 @@ async def get_equity_curve(
 ):
     await _get_pm_or_404(pm_id, db)
     returns = await _fetch_returns(pm_id, db, start_date, end_date)
-    curve = calculate_equity_curve(returns)
-    return [{"date": str(p["date"]), "nav": p["nav"]} for p in curve]
+    lev_hist = await _fetch_leverage_history(pm_id, db)
+    curve = calculate_equity_curve(returns, leverage_history=lev_hist)
+    return [{"date": str(p["date"]), "nav": p["nav"], "std_nav": p["std_nav"]} for p in curve]
 
 
 @router.get("/pms/{pm_id}/returns", response_model=list[DailyReturnResponse])

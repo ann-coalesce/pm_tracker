@@ -49,7 +49,7 @@ async def list_pms(
     if not include_sparkline:
         return [PMResponse.model_validate(pm) for pm in pms]
 
-    # fetch returns for all PMs in one query
+    # fetch returns and leverage history for all PMs in batch queries
     pm_ids = [pm.id for pm in pms]
     ret_result = await db.execute(
         select(DailyReturn.pm_id, DailyReturn.date, DailyReturn.return_pct)
@@ -60,17 +60,32 @@ async def list_pms(
     for pm_id, d, r in ret_result.all():
         returns_by_pm.setdefault(pm_id, []).append((d, Decimal(str(r))))
 
+    lev_result = await db.execute(
+        select(
+            PMLeverageHistory.pm_id,
+            PMLeverageHistory.start_date,
+            PMLeverageHistory.end_date,
+            PMLeverageHistory.leverage,
+        ).where(PMLeverageHistory.pm_id.in_(pm_ids))
+    )
+    lev_by_pm: dict[uuid.UUID, list[dict]] = {}
+    for pm_id, start, end, lev in lev_result.all():
+        lev_by_pm.setdefault(pm_id, []).append(
+            {"start_date": start, "end_date": end, "leverage": lev}
+        )
+
     response = []
     for pm in pms:
         pm_data = PMResponse.model_validate(pm).model_dump()
         rets = returns_by_pm.get(pm.id, [])
+        lev_hist = lev_by_pm.get(pm.id, [])
         if len(rets) >= 2:
-            curve = calculate_equity_curve(rets)
+            curve = calculate_equity_curve(rets, leverage_history=lev_hist)
             pm_data["sparkline"] = [
                 {"date": str(p["date"]), "nav": p["nav"]}
                 for p in _sample_curve(curve)
             ]
-            m = calculate_metrics(rets)
+            m = calculate_metrics(rets, leverage_history=lev_hist)
             pm_data["metrics"] = {
                 **m,
                 "track_record_start": str(m["track_record_start"]),
