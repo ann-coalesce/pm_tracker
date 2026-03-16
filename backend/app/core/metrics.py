@@ -113,11 +113,13 @@ def calculate_metrics(
         std_ann_downside_volatility = 0.0
 
     # ── Ratios ────────────────────────────────────────────────────
-    excess = cagr - risk_free_rate
+    arithmetic_ann_return = mean * 365
+    excess = arithmetic_ann_return - risk_free_rate
     sharpe = excess / ann_volatility if ann_volatility else None
     sortino = excess / ann_downside_volatility if ann_downside_volatility else None
 
-    std_excess = std_cagr - risk_free_rate
+    std_arithmetic_ann_return = std_mean * 365
+    std_excess = std_arithmetic_ann_return - risk_free_rate
     std_sharpe = std_excess / std_ann_volatility if std_ann_volatility else None
     std_sortino = std_excess / std_ann_downside_volatility if std_ann_downside_volatility else None
 
