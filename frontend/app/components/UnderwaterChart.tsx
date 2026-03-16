@@ -14,10 +14,11 @@ export default function UnderwaterChart({
   if (min === 0) return null
 
   const X = (i: number) => (i / Math.max(series.length - 1, 1)) * W
-  const Y = (v: number) => H - (v / min) * H
+  // Y=0 is top (0% drawdown), Y=H is bottom (max drawdown)
+  const Y = (v: number) => (v / min) * H
   const pathD =
     dd.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ') +
-    ` L${W},${H} L0,${H} Z`
+    ` L${W},0 L0,0 Z`
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
