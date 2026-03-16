@@ -44,8 +44,9 @@ class PM(Base):
     trading_horizon: Mapped[str | None] = mapped_column(String(20))
     exchanges: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
     gp_commitment: Mapped[float | None] = mapped_column(Numeric(20, 2))
-    description: Mapped[str | None] = mapped_column(Text)
-    contact_info: Mapped[str | None] = mapped_column(Text)
+    contact_name: Mapped[str | None] = mapped_column(String(100))
+    contact_email: Mapped[str | None] = mapped_column(String(200))
+    contact_telegram: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -60,6 +61,9 @@ class PM(Base):
         back_populates="pm", cascade="all, delete-orphan"
     )
     daily_returns: Mapped[list["DailyReturn"]] = relationship(
+        back_populates="pm", cascade="all, delete-orphan"
+    )
+    leverage_history: Mapped[list["PMLeverageHistory"]] = relationship(
         back_populates="pm", cascade="all, delete-orphan"
     )
 
@@ -130,3 +134,25 @@ class DailyReturn(Base):
     )
 
     pm: Mapped["PM"] = relationship(back_populates="daily_returns")
+
+
+class PMLeverageHistory(Base):
+    __tablename__ = "pm_leverage_history"
+    __table_args__ = (
+        UniqueConstraint("pm_id", "start_date", name="uq_leverage_history_pm_start"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    pm_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pm.id"), nullable=False
+    )
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    leverage: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    pm: Mapped["PM"] = relationship(back_populates="leverage_history")

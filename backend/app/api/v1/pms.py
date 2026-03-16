@@ -9,8 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.metrics import calculate_equity_curve, calculate_metrics
-from app.models.pm import DailyReturn, PM, PMStatusLog
-from app.schemas.pm import PMCreate, PMResponse, PMStatusLogResponse, PMStatusUpdate, PMUpdate
+from app.models.pm import DailyReturn, PM, PMLeverageHistory, PMStatusLog
+from app.schemas.pm import (
+    LeverageHistoryCreate,
+    LeverageHistoryResponse,
+    PMCreate,
+    PMResponse,
+    PMStatusLogResponse,
+    PMStatusUpdate,
+    PMUpdate,
+)
 
 router = APIRouter(prefix="/pms", tags=["pms"])
 
@@ -86,8 +94,19 @@ async def get_pm(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 @router.post("", response_model=PMResponse, status_code=201)
 async def create_pm(payload: PMCreate, db: AsyncSession = Depends(get_db)):
-    pm = PM(**payload.model_dump())
+    data = payload.model_dump(exclude={"initial_leverage"})
+    pm = PM(**data)
     db.add(pm)
+    await db.flush()  # get pm.id before commit
+
+    if payload.initial_leverage is not None:
+        lev = PMLeverageHistory(
+            pm_id=pm.id,
+            start_date=date.today(),
+            leverage=payload.initial_leverage,
+        )
+        db.add(lev)
+
     await db.commit()
     await db.refresh(pm)
     return pm
@@ -139,3 +158,54 @@ async def get_status_log(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def get_leverage_for_date(pm_id: uuid.UUID, as_of: date, db: AsyncSession) -> Optional[Decimal]:
+    """Return the leverage in effect for a PM on a given date."""
+    stmt = (
+        select(PMLeverageHistory.leverage)
+        .where(PMLeverageHistory.pm_id == pm_id)
+        .where(PMLeverageHistory.start_date <= as_of)
+        .where(
+            (PMLeverageHistory.end_date == None) | (PMLeverageHistory.end_date >= as_of)  # noqa: E711
+        )
+        .order_by(PMLeverageHistory.start_date.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+@router.get("/{pm_id}/leverage-history", response_model=list[LeverageHistoryResponse])
+async def get_leverage_history(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    pm = await db.get(PM, pm_id)
+    if pm is None:
+        raise HTTPException(status_code=404, detail="PM not found")
+    stmt = (
+        select(PMLeverageHistory)
+        .where(PMLeverageHistory.pm_id == pm_id)
+        .order_by(PMLeverageHistory.start_date.asc())
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+@router.post("/{pm_id}/leverage-history", response_model=LeverageHistoryResponse, status_code=201)
+async def add_leverage_history(
+    pm_id: uuid.UUID,
+    payload: LeverageHistoryCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    pm = await db.get(PM, pm_id)
+    if pm is None:
+        raise HTTPException(status_code=404, detail="PM not found")
+    lev = PMLeverageHistory(
+        pm_id=pm_id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        leverage=payload.leverage,
+    )
+    db.add(lev)
+    await db.commit()
+    await db.refresh(lev)
+    return lev

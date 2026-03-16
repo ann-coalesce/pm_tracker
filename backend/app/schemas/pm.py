@@ -19,8 +19,10 @@ class PMCreate(BaseModel):
     trading_horizon: Optional[str] = None
     exchanges: Optional[list[str]] = None
     gp_commitment: Optional[Decimal] = None
-    description: Optional[str] = None
-    contact_info: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_telegram: Optional[str] = None
+    initial_leverage: Optional[Decimal] = None
 
 
 class PMUpdate(BaseModel):
@@ -34,8 +36,9 @@ class PMUpdate(BaseModel):
     trading_horizon: Optional[str] = None
     exchanges: Optional[list[str]] = None
     gp_commitment: Optional[Decimal] = None
-    description: Optional[str] = None
-    contact_info: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_telegram: Optional[str] = None
 
 
 class PMStatusUpdate(BaseModel):
@@ -64,10 +67,28 @@ class PMResponse(BaseModel):
     trading_horizon: Optional[str]
     exchanges: Optional[list[str]]
     gp_commitment: Optional[Decimal]
-    description: Optional[str]
-    contact_info: Optional[str]
+    contact_name: Optional[str]
+    contact_email: Optional[str]
+    contact_telegram: Optional[str]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class LeverageHistoryCreate(BaseModel):
+    start_date: date
+    end_date: Optional[date] = None
+    leverage: Decimal
+
+
+class LeverageHistoryResponse(BaseModel):
+    id: uuid.UUID
+    pm_id: uuid.UUID
+    start_date: date
+    end_date: Optional[date]
+    leverage: Decimal
+    created_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
 
