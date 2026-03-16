@@ -109,20 +109,15 @@ def calculate_metrics(
     std_ann_volatility = std_daily_std * math.sqrt(365)
 
     neg_rets = [r for r in rets if r < 0]
-    if len(neg_rets) >= 2:
-        neg_mean = sum(neg_rets) / len(neg_rets)
-        neg_var = sum((r - neg_mean) ** 2 for r in neg_rets) / (len(neg_rets) - 1)
-        ann_downside_volatility = math.sqrt(neg_var) * math.sqrt(365)
-    else:
-        ann_downside_volatility = 0.0
+    downside_series = [r if r < 0 else 0.0 for r in rets]
+    ds_mean = sum(downside_series) / n
+    ds_var = sum((r - ds_mean) ** 2 for r in downside_series) / (n - 1)
+    ann_downside_volatility = math.sqrt(ds_var) * math.sqrt(365)
 
-    std_neg_rets = [r for r in std_rets if r < 0]
-    if len(std_neg_rets) >= 2:
-        std_neg_mean = sum(std_neg_rets) / len(std_neg_rets)
-        std_neg_var = sum((r - std_neg_mean) ** 2 for r in std_neg_rets) / (len(std_neg_rets) - 1)
-        std_ann_downside_volatility = math.sqrt(std_neg_var) * math.sqrt(365)
-    else:
-        std_ann_downside_volatility = 0.0
+    std_downside_series = [r if r < 0 else 0.0 for r in std_rets]
+    std_ds_mean = sum(std_downside_series) / n
+    std_ds_var = sum((r - std_ds_mean) ** 2 for r in std_downside_series) / (n - 1)
+    std_ann_downside_volatility = math.sqrt(std_ds_var) * math.sqrt(365)
 
     # ── Ratios ────────────────────────────────────────────────────
     arithmetic_ann_return = mean * 365
