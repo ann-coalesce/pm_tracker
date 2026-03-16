@@ -14,15 +14,6 @@ const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
 const fmtM = (n: number | null) => n == null ? '—' : `${n}M`
 
-function standardizeCurve(navs: number[], leverage: number): number[] {
-  if (leverage <= 1) return navs
-  const result = [1]
-  for (let i = 1; i < navs.length; i++) {
-    const dr = (navs[i] - navs[i - 1]) / navs[i - 1]
-    result.push(result[result.length - 1] * (1 + dr / leverage))
-  }
-  return result
-}
 
 export default function PMDetailClient() {
   const router = useRouter()
@@ -69,14 +60,10 @@ export default function PMDetailClient() {
     return curve.filter(p => new Date(p.date) >= cutoff)
   }, [curve, timeRange])
 
-  const series = useMemo(() => {
-    const navs = slicedCurve.map(p => p.nav)
-    const lev = pm?.leverage_target ?? 1
-    return {
-      main: returnType === 'std' ? standardizeCurve(navs, lev) : navs,
-      dates: slicedCurve.map(p => p.date),
-    }
-  }, [slicedCurve, returnType, pm])
+  const series = useMemo(() => ({
+    main: slicedCurve.map(p => returnType === 'std' ? p.std_nav : p.nav),
+    dates: slicedCurve.map(p => p.date),
+  }), [slicedCurve, returnType])
 
   if (loading) return (
     <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -93,15 +80,25 @@ export default function PMDetailClient() {
     </div>
   )
 
+  const isStd = returnType === 'std'
+  const annReturn    = isStd ? (metrics?.std_cagr ?? null)                    : (metrics?.cagr ?? null)
+  const sharpe       = isStd ? (metrics?.std_sharpe_ratio ?? null)             : (metrics?.sharpe_ratio ?? null)
+  const sortino      = isStd ? (metrics?.std_sortino_ratio ?? null)            : (metrics?.sortino_ratio ?? null)
+  const calmar       = isStd ? (metrics?.std_calmar_ratio ?? null)             : (metrics?.calmar_ratio ?? null)
+  const annVol       = isStd ? (metrics?.std_ann_volatility ?? null)           : (metrics?.ann_volatility ?? null)
+  const annDVol      = isStd ? (metrics?.std_ann_downside_volatility ?? null)  : (metrics?.ann_downside_volatility ?? null)
+  const maxDD        = isStd ? (metrics?.std_max_drawdown ?? null)             : (metrics?.max_drawdown ?? null)
+  const currentDD    = isStd ? (metrics?.std_current_drawdown ?? null)         : (metrics?.current_drawdown ?? null)
+
   const metricCards = [
-    { label: 'Ann. Return', value: fmt(metrics?.cagr ?? null),                   color: (metrics?.cagr ?? 0) >= 0 ? '#10b981' : '#ef4444' },
-    { label: 'Sharpe',      value: fmtR(metrics?.sharpe_ratio ?? null),           color: '#3b82f6' },
-    { label: 'Sortino',     value: fmtR(metrics?.sortino_ratio ?? null),          color: '#6366f1' },
-    { label: 'Calmar',      value: fmtR(metrics?.calmar_ratio ?? null),           color: '#8b5cf6' },
-    { label: 'Ann. Vol',    value: fmt(metrics?.ann_volatility ?? null),          color: '#f59e0b' },
-    { label: 'Ann. D.Vol',  value: fmt(metrics?.ann_downside_volatility ?? null), color: '#f59e0b' },
-    { label: 'Max DD',      value: fmt(metrics?.max_drawdown ?? null),            color: '#ef4444' },
-    { label: 'Current DD',  value: fmt(metrics?.current_drawdown ?? null),        color: (metrics?.current_drawdown ?? 0) < 0 ? '#ef4444' : '#6b7280' },
+    { label: 'Ann. Return', value: fmt(annReturn),  color: (annReturn ?? 0) >= 0 ? '#10b981' : '#ef4444' },
+    { label: 'Sharpe',      value: fmtR(sharpe),    color: '#3b82f6' },
+    { label: 'Sortino',     value: fmtR(sortino),   color: '#6366f1' },
+    { label: 'Calmar',      value: fmtR(calmar),    color: '#8b5cf6' },
+    { label: 'Ann. Vol',    value: fmt(annVol),      color: '#f59e0b' },
+    { label: 'Ann. D.Vol',  value: fmt(annDVol),     color: '#f59e0b' },
+    { label: 'Max DD',      value: fmt(maxDD),       color: '#ef4444' },
+    { label: 'Current DD',  value: fmt(currentDD),   color: (currentDD ?? 0) < 0 ? '#ef4444' : '#6b7280' },
   ]
 
   const tabSt = (t: string): React.CSSProperties => ({
@@ -258,16 +255,18 @@ export default function PMDetailClient() {
               </div>
               <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
                 {secT('Contact')}
-                {pm.contact_info
-                  ? <p style={{ fontSize: 13, color: '#d1d5db', margin: 0, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{pm.contact_info}</p>
-                  : <span style={{ fontSize: 13, color: '#6b7280' }}>—</span>
-                }
-                {pm.description && (
-                  <div style={{ marginTop: 20 }}>
-                    {secT('Notes')}
-                    <p style={{ fontSize: 13, color: '#9ca3af', margin: 0, lineHeight: 1.6 }}>{pm.description}</p>
-                  </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {([
+                    ['Name',     pm.contact_name],
+                    ['Email',    pm.contact_email],
+                    ['Telegram', pm.contact_telegram],
+                  ] as [string, string | null][]).map(([k, v]) => (
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <span style={{ color: '#6b7280' }}>{k}</span>
+                      <span style={{ color: '#d1d5db' }}>{v || '—'}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

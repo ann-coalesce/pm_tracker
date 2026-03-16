@@ -23,6 +23,7 @@ const fmtM = (n: number | null) => n == null ? '—' : `${n}M`
 // Compute display row from PM (metrics in decimal → multiply by 100 for %)
 interface PMRow extends PM {
   _lev: number
+  // actual
   _ann_return: number | null
   _sharpe: number | null
   _sortino: number | null
@@ -31,6 +32,15 @@ interface PMRow extends PM {
   _ann_dvol: number | null
   _max_dd: number | null
   _cur_dd: number | null
+  // std (leverage-normalised)
+  _std_ann_return: number | null
+  _std_sharpe: number | null
+  _std_sortino: number | null
+  _std_calmar: number | null
+  _std_ann_vol: number | null
+  _std_ann_dvol: number | null
+  _std_max_dd: number | null
+  // track record
   _tr_start: string | null
   _tr_end: string | null
   _tr_days: number | null
@@ -41,47 +51,53 @@ function toRow(pm: PM): PMRow {
   const m = pm.metrics
   return {
     ...pm,
-    _lev:       pm.leverage_target ?? 1,
-    _ann_return: m?.cagr != null ? m.cagr * 100 : null,
-    _sharpe:    m?.sharpe_ratio ?? null,
-    _sortino:   m?.sortino_ratio ?? null,
-    _calmar:    m?.calmar_ratio ?? null,
-    _ann_vol:   m?.ann_volatility != null ? m.ann_volatility * 100 : null,
-    _ann_dvol:  m?.ann_downside_volatility != null ? m.ann_downside_volatility * 100 : null,
-    _max_dd:    m?.max_drawdown != null ? m.max_drawdown * 100 : null,
-    _cur_dd:    m?.current_drawdown != null ? m.current_drawdown * 100 : null,
-    _tr_start:  m?.track_record_start ?? null,
-    _tr_end:    m?.track_record_end ?? null,
-    _tr_days:   m?.track_record_days ?? null,
-    _spark:     pm.sparkline?.map(p => p.nav) ?? [],
+    _lev:            pm.leverage_target ?? 1,
+    _ann_return:     m?.cagr != null ? m.cagr * 100 : null,
+    _sharpe:         m?.sharpe_ratio ?? null,
+    _sortino:        m?.sortino_ratio ?? null,
+    _calmar:         m?.calmar_ratio ?? null,
+    _ann_vol:        m?.ann_volatility != null ? m.ann_volatility * 100 : null,
+    _ann_dvol:       m?.ann_downside_volatility != null ? m.ann_downside_volatility * 100 : null,
+    _max_dd:         m?.max_drawdown != null ? m.max_drawdown * 100 : null,
+    _cur_dd:         m?.current_drawdown != null ? m.current_drawdown * 100 : null,
+    _std_ann_return: m?.std_cagr != null ? m.std_cagr * 100 : null,
+    _std_sharpe:     m?.std_sharpe_ratio ?? null,
+    _std_sortino:    m?.std_sortino_ratio ?? null,
+    _std_calmar:     m?.std_calmar_ratio ?? null,
+    _std_ann_vol:    m?.std_ann_volatility != null ? m.std_ann_volatility * 100 : null,
+    _std_ann_dvol:   m?.std_ann_downside_volatility != null ? m.std_ann_downside_volatility * 100 : null,
+    _std_max_dd:     m?.std_max_drawdown != null ? m.std_max_drawdown * 100 : null,
+    _tr_start:       m?.track_record_start ?? null,
+    _tr_end:         m?.track_record_end ?? null,
+    _tr_days:        m?.track_record_days ?? null,
+    _spark:          pm.sparkline?.map(p => p.nav) ?? [],
   }
 }
 
 // Key to sortable value
 function rowVal(row: PMRow, col: string, metricMode: string): number | string | null {
-  const lev = row._lev || 1
-  const s = (n: number | null) => metricMode === 'std' && n != null ? n / lev : n
+  const std = metricMode === 'std'
   switch (col) {
-    case 'name':            return row.name
-    case 'status':          return row.status
+    case 'name':             return row.name
+    case 'status':           return row.status
     case 'exposure_profile': return row.exposure_profile
-    case 'trading_horizon': return row.trading_horizon
-    case 'strategy_type':  return row.strategy_type
-    case 'leverage':        return row._lev
-    case 'ann_return':      return s(row._ann_return)
-    case 'sharpe':          return s(row._sharpe)
-    case 'sortino':         return s(row._sortino)
-    case 'calmar':          return s(row._calmar)
-    case 'ann_vol':         return s(row._ann_vol)
-    case 'ann_dvol':        return s(row._ann_dvol)
-    case 'max_dd':          return row._max_dd
-    case 'tr_start':        return row._tr_start
-    case 'tr_end':          return row._tr_end
-    case 'tr_days':         return row._tr_days
-    case 'current_aum':     return row.current_aum
-    case 'max_capacity':    return row.max_capacity
-    case 'gp_commitment':   return row.gp_commitment
-    default:                return null
+    case 'trading_horizon':  return row.trading_horizon
+    case 'strategy_type':    return row.strategy_type
+    case 'leverage':         return row._lev
+    case 'ann_return':       return std ? row._std_ann_return : row._ann_return
+    case 'sharpe':           return std ? row._std_sharpe     : row._sharpe
+    case 'sortino':          return std ? row._std_sortino    : row._sortino
+    case 'calmar':           return std ? row._std_calmar     : row._calmar
+    case 'ann_vol':          return std ? row._std_ann_vol    : row._ann_vol
+    case 'ann_dvol':         return std ? row._std_ann_dvol   : row._ann_dvol
+    case 'max_dd':           return row._max_dd
+    case 'tr_start':         return row._tr_start
+    case 'tr_end':           return row._tr_end
+    case 'tr_days':          return row._tr_days
+    case 'current_aum':      return row.current_aum
+    case 'max_capacity':     return row.max_capacity
+    case 'gp_commitment':    return row.gp_commitment
+    default:                 return null
   }
 }
 
@@ -283,8 +299,7 @@ export default function PMListPage() {
                   </tr>
                 ))
               ) : rows.map((row, i) => {
-                const lev = row._lev || 1
-                const s = (n: number | null) => metricMode === 'std' && n != null ? n / lev : n
+                const std = metricMode === 'std'
                 const rowBg = hovered === row.id ? '#1f2937' : i % 2 === 0 ? '#111827' : '#0d1424'
                 return (
                   <tr key={row.id} style={{ borderBottom: '1px solid #1a2234', background: rowBg }}
@@ -303,14 +318,14 @@ export default function PMListPage() {
                       <td style={td({ color: '#d1d5db' })}>{row.strategy_type || '—'}</td>
                     </>}
                     {visGroups.metrics && <>
-                      <td style={td({ color: '#9ca3af', textAlign: 'right' })}>{lev}x</td>
-                      <td style={td({ color: (s(row._ann_return) ?? 0) >= 0 ? '#10b981' : '#ef4444', textAlign: 'right', fontWeight: 500 })}>{fmt(s(row._ann_return))}</td>
-                      <td style={td({ color: '#3b82f6', textAlign: 'right' })}>{fmtN(s(row._sharpe))}</td>
-                      <td style={td({ color: '#6366f1', textAlign: 'right' })}>{fmtN(s(row._sortino))}</td>
-                      <td style={td({ color: '#8b5cf6', textAlign: 'right' })}>{fmtN(s(row._calmar))}</td>
-                      <td style={td({ color: '#f59e0b', textAlign: 'right' })}>{fmt(s(row._ann_vol))}</td>
-                      <td style={td({ color: '#f59e0b', textAlign: 'right', opacity: 0.75 })}>{fmt(s(row._ann_dvol))}</td>
-                      <td style={td({ color: '#ef4444', textAlign: 'right' })}>{fmt(row._max_dd)}</td>
+                      <td style={td({ color: '#9ca3af', textAlign: 'right' })}>{row._lev}x</td>
+                      <td style={td({ color: ((std ? row._std_ann_return : row._ann_return) ?? 0) >= 0 ? '#10b981' : '#ef4444', textAlign: 'right', fontWeight: 500 })}>{fmt(std ? row._std_ann_return : row._ann_return)}</td>
+                      <td style={td({ color: '#3b82f6', textAlign: 'right' })}>{fmtN(std ? row._std_sharpe  : row._sharpe)}</td>
+                      <td style={td({ color: '#6366f1', textAlign: 'right' })}>{fmtN(std ? row._std_sortino : row._sortino)}</td>
+                      <td style={td({ color: '#8b5cf6', textAlign: 'right' })}>{fmtN(std ? row._std_calmar  : row._calmar)}</td>
+                      <td style={td({ color: '#f59e0b', textAlign: 'right' })}>{fmt(std ? row._std_ann_vol  : row._ann_vol)}</td>
+                      <td style={td({ color: '#f59e0b', textAlign: 'right', opacity: 0.75 })}>{fmt(std ? row._std_ann_dvol : row._ann_dvol)}</td>
+                      <td style={td({ color: '#ef4444', textAlign: 'right' })}>{fmt(std ? row._std_max_dd   : row._max_dd)}</td>
                     </>}
                     {visGroups.track_record && <>
                       <td style={td({ color: '#9ca3af', fontSize: 11 })}>{row._tr_start || '—'}</td>

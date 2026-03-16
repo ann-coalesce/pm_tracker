@@ -24,8 +24,9 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
     current_aum: pm?.current_aum != null ? String(pm.current_aum) : '0',
     gp_commitment: pm?.gp_commitment != null ? String(pm.gp_commitment) : '',
     exchanges: pm?.exchanges ?? [] as string[],
-    contact_info: pm?.contact_info ?? '',
-    description: pm?.description ?? '',
+    contact_name: pm?.contact_name ?? '',
+    contact_email: pm?.contact_email ?? '',
+    contact_telegram: pm?.contact_telegram ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,8 +63,9 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
         current_aum: form.current_aum ? Number(form.current_aum) : 0,
         gp_commitment: form.gp_commitment ? Number(form.gp_commitment) : undefined,
         exchanges: form.exchanges.length > 0 ? form.exchanges : undefined,
-        contact_info: form.contact_info.trim() || undefined,
-        description: form.description.trim() || undefined,
+        contact_name: form.contact_name.trim() || undefined,
+        contact_email: form.contact_email.trim() || undefined,
+        contact_telegram: form.contact_telegram.trim() || undefined,
       }
       await onSave(payload)
       onClose()
@@ -164,17 +166,20 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
         </div>
 
         <div style={{ marginBottom: 28 }}>{sec('Contact')}
-          <label style={lbl}>Contact Info</label>
-          <textarea
-            style={{ ...inp, height: 72, resize: 'vertical' }}
-            value={form.contact_info}
-            onChange={e => set('contact_info', e.target.value)}
-            placeholder="Name, email, Telegram, etc."
-          />
-        </div>
-
-        <div style={{ marginBottom: 28 }}>{sec('Notes')}
-          <textarea style={{ ...inp, height: 80, resize: 'vertical' }} value={form.description} onChange={e => set('description', e.target.value)} />
+          <div style={grid}>
+            <div>
+              <label style={lbl}>Name</label>
+              <input style={inp} value={form.contact_name} onChange={e => set('contact_name', e.target.value)} placeholder="e.g. John Smith" />
+            </div>
+            <div>
+              <label style={lbl}>Email</label>
+              <input style={inp} type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="e.g. john@example.com" />
+            </div>
+            <div>
+              <label style={lbl}>Telegram</label>
+              <input style={inp} value={form.contact_telegram} onChange={e => set('contact_telegram', e.target.value)} placeholder="e.g. @johnsmith" />
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>

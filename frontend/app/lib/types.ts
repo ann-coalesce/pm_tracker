@@ -13,8 +13,9 @@ export interface PM {
   max_capacity: number | null
   current_aum: number
   gp_commitment: number | null
-  description: string | null
-  contact_info: string | null
+  contact_name: string | null
+  contact_email: string | null
+  contact_telegram: string | null
   created_at: string
   updated_at: string | null
   sparkline?: { date: string; nav: number }[]
@@ -38,11 +39,23 @@ export interface PMMetrics {
   track_record_days: number | null
   track_record_start: string | null
   track_record_end: string | null
+  // leverage-normalised (std) metrics
+  std_total_return: number | null
+  std_cagr: number | null
+  std_ann_volatility: number | null
+  std_ann_downside_volatility: number | null
+  std_sharpe_ratio: number | null
+  std_sortino_ratio: number | null
+  std_calmar_ratio: number | null
+  std_max_drawdown: number | null
+  std_max_drawdown_duration_days: number | null
+  std_current_drawdown: number | null
 }
 
 export interface EquityCurvePoint {
   date: string
   nav: number
+  std_nav: number
 }
 
 export interface PMStatusLog {
@@ -84,8 +97,9 @@ export interface PMCreate {
   current_aum?: number
   gp_commitment?: number
   exchanges?: string[]
-  description?: string
-  contact_info?: string
+  contact_name?: string
+  contact_email?: string
+  contact_telegram?: string
 }
 
 export type PMUpdate = Partial<PMCreate>
