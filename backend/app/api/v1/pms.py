@@ -211,16 +211,32 @@ async def add_leverage_history(
     payload: LeverageHistoryCreate,
     db: AsyncSession = Depends(get_db),
 ):
+    from datetime import timedelta
     pm = await db.get(PM, pm_id)
     if pm is None:
         raise HTTPException(status_code=404, detail="PM not found")
+
+    # Close any open period (end_date = null)
+    open_result = await db.execute(
+        select(PMLeverageHistory)
+        .where(PMLeverageHistory.pm_id == pm_id)
+        .where(PMLeverageHistory.end_date == None)  # noqa: E711
+    )
+    for open_row in open_result.scalars().all():
+        open_row.end_date = payload.start_date - timedelta(days=1)
+
+    # Insert new period
     lev = PMLeverageHistory(
         pm_id=pm_id,
         start_date=payload.start_date,
-        end_date=payload.end_date,
+        end_date=None,
         leverage=payload.leverage,
     )
     db.add(lev)
+
+    # Update pm.leverage_target to the new value
+    pm.leverage_target = float(payload.leverage)
+
     await db.commit()
     await db.refresh(lev)
     return lev
