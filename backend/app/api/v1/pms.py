@@ -1,10 +1,12 @@
+import csv
+import io
 import uuid
-from datetime import date
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -125,6 +127,109 @@ async def create_pm(payload: PMCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(pm)
     return pm
+
+
+VALID_STATUSES = {"pipeline", "onboarding", "active", "alumni", "inactive"}
+
+NUMERIC_FIELDS = {"leverage_target", "max_capacity", "current_aum", "gp_commitment"}
+
+
+@router.post("/import-csv")
+async def import_pms_csv(
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    # Fetch all existing PM names (case-insensitive dedup)
+    existing = await db.execute(select(func.lower(PM.name)))
+    existing_names: set[str] = {row[0] for row in existing.all()}
+
+    today = date.today()
+    inserted = 0
+    skipped = 0
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    reader = csv.DictReader(io.StringIO(text))
+    for lineno, row in enumerate(reader, start=2):
+        # Skip blank rows
+        if not any(v.strip() for v in row.values()):
+            continue
+
+        name = (row.get("name") or "").strip()
+        if not name:
+            errors.append(f"Row {lineno}: name is empty — skipped")
+            skipped += 1
+            continue
+
+        if name.lower() in existing_names:
+            errors.append(f"Row {lineno}: PM '{name}' already exists — skipped")
+            skipped += 1
+            continue
+
+        # Status
+        status = (row.get("status") or "pipeline").strip()
+        if status not in VALID_STATUSES:
+            warnings.append(f"Row {lineno} ({name}): invalid status '{status}' → set to 'pipeline'")
+            status = "pipeline"
+
+        # Numeric fields
+        def parse_num(field: str) -> Optional[Decimal]:
+            raw = (row.get(field) or "").strip()
+            if not raw:
+                return None
+            try:
+                return Decimal(raw)
+            except InvalidOperation:
+                warnings.append(f"Row {lineno} ({name}): '{field}' value '{raw}' is not numeric → set to null")
+                return None
+
+        leverage_target = parse_num("leverage_target")
+        max_capacity = parse_num("max_capacity")
+        current_aum = parse_num("current_aum") or Decimal("0")
+        gp_commitment = parse_num("gp_commitment")
+
+        # Exchanges (comma-separated)
+        raw_exchanges = (row.get("exchanges") or "").strip()
+        exchanges = [e.strip() for e in raw_exchanges.split(",") if e.strip()] or None
+
+        pm = PM(
+            name=name,
+            status=status,
+            exposure_profile=(row.get("exposure_profile") or "").strip() or None,
+            trading_horizon=(row.get("trading_horizon") or "").strip() or None,
+            strategy_type=(row.get("strategy_type") or "").strip() or None,
+            leverage_target=leverage_target,
+            max_capacity=max_capacity,
+            current_aum=current_aum,
+            gp_commitment=gp_commitment,
+            exchanges=exchanges,
+            contact_name=(row.get("contact_name") or "").strip() or None,
+            contact_email=(row.get("contact_email") or "").strip() or None,
+            contact_telegram=(row.get("contact_telegram") or "").strip() or None,
+        )
+        db.add(pm)
+        await db.flush()
+
+        # First leverage history entry
+        lev_value = leverage_target if leverage_target is not None else Decimal("1.0")
+        db.add(PMLeverageHistory(
+            pm_id=pm.id,
+            start_date=today,
+            end_date=None,
+            leverage=lev_value,
+        ))
+
+        existing_names.add(name.lower())
+        inserted += 1
+
+    await db.commit()
+    return {"inserted": inserted, "skipped": skipped, "warnings": warnings, "errors": errors}
 
 
 @router.patch("/{pm_id}", response_model=PMResponse)

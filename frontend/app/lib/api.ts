@@ -98,6 +98,13 @@ export async function addLeverageHistory(
   return handleRes<LeverageHistory>(res)
 }
 
+export async function importPMs(file: File): Promise<UploadResult> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${BASE}/v1/pms/import-csv`, { method: 'POST', body: fd })
+  return handleRes<UploadResult>(res)
+}
+
 export async function uploadReturns(pmId: string, file: File): Promise<UploadResult> {
   const fd = new FormData()
   fd.append('file', file)
