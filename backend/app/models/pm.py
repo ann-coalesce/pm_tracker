@@ -47,6 +47,7 @@ class PM(Base):
     contact_name: Mapped[str | None] = mapped_column(String(100))
     contact_email: Mapped[str | None] = mapped_column(String(200))
     contact_telegram: Mapped[str | None] = mapped_column(String(100))
+    nav_table_key: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

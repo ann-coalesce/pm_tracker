@@ -7,8 +7,8 @@ import LineChart from '../../components/LineChart'
 import UnderwaterChart from '../../components/UnderwaterChart'
 import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
-import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory } from '../../lib/api'
-import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory } from '../../lib/types'
+import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav } from '../../lib/api'
+import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
@@ -31,12 +31,17 @@ export default function PMDetailClient() {
   const [curve, setCurve] = useState<EquityCurvePoint[]>([])
   const [statusLog, setStatusLog] = useState<PMStatusLog[]>([])
   const [leverageHistory, setLeverageHistory] = useState<LeverageHistory[]>([])
+  const [returnSources, setReturnSources] = useState<ReturnSource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [returnType, setReturnType] = useState('actual')
   const [timeRange, setTimeRange] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
+
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const [levFormOpen, setLevFormOpen] = useState(false)
   const [levForm, setLevForm] = useState({ start_date: '', leverage: '', note: '' })
@@ -53,10 +58,11 @@ export default function PMDetailClient() {
   const load = () => {
     if (!id) return
     setLoading(true); setError(null)
-    Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id), getLeverageHistory(id)])
-      .then(([pmData, metricsData, curveData, logData, levData]) => {
+    Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id), getLeverageHistory(id), getReturnSources(id)])
+      .then(([pmData, metricsData, curveData, logData, levData, srcData]) => {
         setPm(pmData); setMetrics(metricsData); setCurve(curveData); setStatusLog(logData)
         setLeverageHistory(levData as LeverageHistory[])
+        setReturnSources(srcData as ReturnSource[])
         setLoading(false)
       })
       .catch(e => { setError(e.message); setLoading(false) })
@@ -72,10 +78,20 @@ export default function PMDetailClient() {
     return curve.filter(p => new Date(p.date) >= cutoff)
   }, [curve, timeRange])
 
+  const sourceMarkers = useMemo(() => {
+    if (returnSources.length <= 1) return []
+    return returnSources.slice(1).flatMap(src => {
+      const idx = slicedCurve.findIndex(p => p.date >= src.start_date)
+      if (idx < 0) return []
+      return [{ idx, label: `Source: ${src.source_type}, from ${src.start_date}` }]
+    })
+  }, [returnSources, slicedCurve])
+
   const series = useMemo(() => ({
     main: slicedCurve.map(p => returnType === 'std' ? p.std_nav : p.nav),
     dates: slicedCurve.map(p => p.date),
-  }), [slicedCurve, returnType])
+    sources: sourceMarkers,
+  }), [slicedCurve, returnType, sourceMarkers])
 
   if (loading) return (
     <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -196,6 +212,35 @@ export default function PMDetailClient() {
                     </button>
                   ))}
                 </div>
+                {pm.nav_table_key && (
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {syncResult && !syncError && (
+                      <span style={{ fontSize: 11, color: '#10b981' }}>
+                        Synced: +{syncResult.inserted} inserted, {syncResult.updated} updated
+                      </span>
+                    )}
+                    {syncError && (
+                      <span style={{ fontSize: 11, color: '#ef4444' }}>{syncError}</span>
+                    )}
+                    <button
+                      disabled={syncing}
+                      onClick={async () => {
+                        setSyncing(true); setSyncResult(null); setSyncError(null)
+                        try {
+                          const result = await syncNav(id)
+                          setSyncResult(result)
+                          load()
+                        } catch (e) {
+                          setSyncError(e instanceof Error ? e.message : 'Sync failed')
+                        } finally {
+                          setSyncing(false)
+                        }
+                      }}
+                      style={{ background: syncing ? '#1e3a5f' : '#1e2a3a', border: '1px solid #3b82f6', color: syncing ? '#6b7280' : '#60a5fa', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: syncing ? 'not-allowed' : 'pointer' }}>
+                      {syncing ? 'Syncing…' : '⟳ Sync from NAV'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: '14px 8px 8px', marginBottom: 10 }}>
@@ -241,7 +286,7 @@ export default function PMDetailClient() {
 
           {/* Info Tab */}
           {activeTab === 'info' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
               <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
                 {secT('Strategy & Fund')}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -265,19 +310,48 @@ export default function PMDetailClient() {
                   ))}
                 </div>
               </div>
-              <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
-                {secT('Contact')}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {([
-                    ['Name',     pm.contact_name],
-                    ['Email',    pm.contact_email],
-                    ['Telegram', pm.contact_telegram],
-                  ] as [string, string | null][]).map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: '#6b7280' }}>{k}</span>
-                      <span style={{ color: '#d1d5db' }}>{v || '—'}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
+                  {secT('Contact')}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {([
+                      ['Name',     pm.contact_name],
+                      ['Email',    pm.contact_email],
+                      ['Telegram', pm.contact_telegram],
+                    ] as [string, string | null][]).map(([k, v]) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: '#6b7280' }}>{k}</span>
+                        <span style={{ color: '#d1d5db' }}>{v || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
+                  {secT('Return Sources')}
+                  {returnSources.length === 0
+                    ? <div style={{ color: '#6b7280', fontSize: 13 }}>No return sources configured.</div>
+                    : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {returnSources.map(src => (
+                          <div key={src.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderBottom: '1px solid #1f2937', paddingBottom: 8 }}>
+                            <div>
+                              <span style={{ color: '#d1d5db', fontWeight: 500 }}>{src.source_type}</span>
+                              {src.source_ref && <span style={{ color: '#6b7280', marginLeft: 6 }}>({src.source_ref})</span>}
+                              {src.note && <div style={{ color: '#6b7280', marginTop: 2 }}>{src.note}</div>}
+                            </div>
+                            <div style={{ color: '#9ca3af', textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                              {src.start_date} → {src.end_date ?? 'present'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                  {pm.nav_table_key && (
+                    <div style={{ marginTop: 10, fontSize: 11, color: '#6b7280' }}>
+                      NAV key: <code style={{ fontFamily: 'monospace', background: '#0f172a', padding: '1px 5px', borderRadius: 3, color: '#fbbf24' }}>{pm.nav_table_key}</code>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

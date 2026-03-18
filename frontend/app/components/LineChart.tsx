@@ -4,7 +4,7 @@ export interface LineChartSeries {
   main: number[]
   btc?: number[]
   dates?: string[]
-  sources?: { idx: number }[]
+  sources?: { idx: number; label?: string }[]
 }
 
 export default function LineChart({
@@ -47,7 +47,10 @@ export default function LineChart({
         )}
         <path d={path(series.main)} fill="none" stroke="#10b981" strokeWidth={2} />
         {series.sources?.map((seg, i) => (
-          <line key={i} x1={X(seg.idx)} y1={0} x2={X(seg.idx)} y2={H} stroke="#3b82f6" strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
+          <g key={i}>
+            {seg.label && <title>{seg.label}</title>}
+            <line x1={X(seg.idx)} y1={0} x2={X(seg.idx)} y2={H} stroke="#3b82f6" strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
+          </g>
         ))}
         {xTicks.map(i => (
           <text key={i} x={X(i)} y={H + 18} textAnchor="middle" fontSize={10} fill="#6b7280">

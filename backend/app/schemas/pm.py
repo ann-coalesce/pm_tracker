@@ -22,6 +22,7 @@ class PMCreate(BaseModel):
     contact_name: Optional[str] = None
     contact_email: Optional[str] = None
     contact_telegram: Optional[str] = None
+    nav_table_key: Optional[str] = None
     initial_leverage: Optional[Decimal] = None
 
 
@@ -39,6 +40,7 @@ class PMUpdate(BaseModel):
     contact_name: Optional[str] = None
     contact_email: Optional[str] = None
     contact_telegram: Optional[str] = None
+    nav_table_key: Optional[str] = None
 
 
 class PMStatusUpdate(BaseModel):
@@ -70,6 +72,7 @@ class PMResponse(BaseModel):
     contact_name: Optional[str]
     contact_email: Optional[str]
     contact_telegram: Optional[str]
+    nav_table_key: Optional[str]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
@@ -89,6 +92,34 @@ class LeverageHistoryResponse(BaseModel):
     end_date: Optional[date]
     leverage: Decimal
     created_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class ReturnSourceCreate(BaseModel):
+    start_date: date
+    end_date: Optional[date] = None
+    source_type: str
+    source_ref: Optional[str] = None
+    note: Optional[str] = None
+
+    @field_validator("source_type")
+    @classmethod
+    def validate_source_type(cls, v: str) -> str:
+        valid = {"self_reported", "internal_nav", "exchange_api"}
+        if v not in valid:
+            raise ValueError(f"source_type must be one of {sorted(valid)}")
+        return v
+
+
+class ReturnSourceResponse(BaseModel):
+    id: uuid.UUID
+    pm_id: uuid.UUID
+    start_date: date
+    end_date: Optional[date]
+    source_type: str
+    source_ref: Optional[str]
+    note: Optional[str]
 
     model_config = {"from_attributes": True}
 

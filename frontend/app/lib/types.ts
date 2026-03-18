@@ -1,5 +1,12 @@
 export type PMStatus = 'pipeline' | 'onboarding' | 'active' | 'alumni' | 'inactive'
 
+export interface SyncResult {
+  inserted: number
+  updated: number
+  skipped: number
+  warnings: string[]
+}
+
 export interface PM {
   id: string
   name: string
@@ -16,6 +23,7 @@ export interface PM {
   contact_name: string | null
   contact_email: string | null
   contact_telegram: string | null
+  nav_table_key: string | null
   created_at: string
   updated_at: string | null
   sparkline?: { date: string; nav: number }[]
@@ -109,6 +117,7 @@ export interface PMCreate {
   contact_name?: string
   contact_email?: string
   contact_telegram?: string
+  nav_table_key?: string
 }
 
 export type PMUpdate = Partial<PMCreate>

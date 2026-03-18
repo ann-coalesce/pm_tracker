@@ -1,6 +1,7 @@
 import type {
   PM, PMCreate, PMUpdate, PMStatusUpdate,
   PMMetrics, EquityCurvePoint, PMStatusLog, UploadResult, LeverageHistory,
+  ReturnSource, SyncResult,
 } from './types'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
@@ -79,6 +80,28 @@ export async function getPMEquityCurve(id: string, params?: {
 export async function getPMStatusLog(id: string): Promise<PMStatusLog[]> {
   const res = await fetch(`${BASE}/v1/pms/${id}/status-log`)
   return handleRes<PMStatusLog[]>(res)
+}
+
+export async function getReturnSources(pmId: string): Promise<ReturnSource[]> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/return-sources`)
+  return handleRes<ReturnSource[]>(res)
+}
+
+export async function addReturnSource(
+  pmId: string,
+  data: { start_date: string; source_type: string; source_ref?: string; note?: string; end_date?: string },
+): Promise<ReturnSource> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/return-sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleRes<ReturnSource>(res)
+}
+
+export async function syncNav(pmId: string): Promise<SyncResult> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/sync-nav`, { method: 'POST' })
+  return handleRes<SyncResult>(res)
 }
 
 export async function getLeverageHistory(pmId: string): Promise<LeverageHistory[]> {
