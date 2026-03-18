@@ -244,11 +244,20 @@ export default function PMDetailClient() {
               </div>
 
               <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: '14px 8px 8px', marginBottom: 10 }}>
-                <div style={{ fontSize: 12, color: '#9ca3af', paddingLeft: 16, marginBottom: 6 }}>
-                  <span style={{ color: '#10b981' }}>── {returnType === 'actual' ? 'Actual' : 'Std'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, paddingLeft: 16, marginBottom: 6 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af' }}>
+                    <svg width="20" height="10" style={{ display: 'block' }}><line x1="0" y1="5" x2="20" y2="5" stroke="#10b981" strokeWidth="2" /></svg>
+                    {returnType === 'actual' ? 'Actual' : 'Std'}
+                  </span>
+                  {returnSources.length > 1 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af' }}>
+                      <svg width="20" height="10" style={{ display: 'block' }}><line x1="0" y1="5" x2="20" y2="5" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.8" /></svg>
+                      Source change
+                    </span>
+                  )}
                 </div>
                 {series.main.length >= 2
-                  ? <LineChart series={series} showBtc={false} />
+                  ? <LineChart series={series} showBtc={false} timeRange={timeRange} />
                   : <div style={{ color: '#6b7280', fontSize: 13, padding: '20px 16px', textAlign: 'center' }}>No return data available</div>
                 }
               </div>
@@ -281,6 +290,37 @@ export default function PMDetailClient() {
                   </div>
                 </div>
               )}
+
+              <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16, marginTop: 16 }}>
+                {secT('Return Source Timeline')}
+                {returnSources.length === 0
+                  ? <div style={{ color: '#6b7280', fontSize: 13 }}>No return sources configured.</div>
+                  : (
+                    <div style={{ position: 'relative', paddingLeft: 20 }}>
+                      <div style={{ position: 'absolute', left: 6, top: 0, bottom: 0, width: 2, background: '#1f2937', borderRadius: 2 }} />
+                      {returnSources.map((src, i) => {
+                        const isSelf = src.source_type === 'self_reported'
+                        const dotColor = isSelf ? '#3b82f6' : '#10b981'
+                        const label = isSelf ? 'Self Reported' : src.source_type === 'internal_nav' ? 'Internal NAV' : src.source_type
+                        const dateRange = `${src.start_date} → ${src.end_date ?? 'present'}`
+                        return (
+                          <div key={src.id} style={{ position: 'relative', marginBottom: i < returnSources.length - 1 ? 20 : 0 }}>
+                            <div style={{ position: 'absolute', left: -17, top: 4, width: 10, height: 10, borderRadius: '50%', background: dotColor, border: '2px solid #111827' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: '#d1d5db' }}>{label}</span>
+                              {src.source_ref && (
+                                <code style={{ fontSize: 11, color: '#fbbf24', background: '#0f172a', padding: '1px 5px', borderRadius: 3, fontFamily: 'monospace' }}>{src.source_ref}</code>
+                              )}
+                              <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 'auto' }}>{dateRange}</span>
+                            </div>
+                            {src.note && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>{src.note}</div>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                }
+              </div>
             </div>
           )}
 

@@ -7,13 +7,90 @@ export interface LineChartSeries {
   sources?: { idx: number; label?: string }[]
 }
 
+function buildXTicks(
+  dates: string[],
+  timeRange: string,
+): { idx: number; label: string }[] {
+  if (dates.length < 2) return []
+  const n = dates.length
+  const parsed = dates.map(d => new Date(d + 'T00:00:00Z'))
+  const start = parsed[0]
+  const end = parsed[n - 1]
+
+  const anchors: Date[] = []
+
+  if (timeRange === '3M' || timeRange === '6M') {
+    const stepDays = timeRange === '3M' ? 7 : 14
+    // Start from first Monday on or after start
+    const anchor = new Date(start)
+    const dow = anchor.getUTCDay()
+    anchor.setUTCDate(anchor.getUTCDate() + (dow === 1 ? 0 : (8 - dow) % 7))
+    while (anchor <= end) {
+      anchors.push(new Date(anchor))
+      anchor.setUTCDate(anchor.getUTCDate() + stepDays)
+    }
+  } else if (timeRange === '1Y') {
+    // First of each month
+    const anchor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
+    if (anchor < start) anchor.setUTCMonth(anchor.getUTCMonth() + 1)
+    while (anchor <= end) {
+      anchors.push(new Date(anchor))
+      anchor.setUTCMonth(anchor.getUTCMonth() + 1)
+    }
+  } else {
+    // All: quarter starts Jan/Apr/Jul/Oct
+    for (let y = start.getUTCFullYear(); y <= end.getUTCFullYear(); y++) {
+      for (const m of [0, 3, 6, 9]) {
+        const d = new Date(Date.UTC(y, m, 1))
+        if (d >= start && d <= end) anchors.push(d)
+      }
+    }
+  }
+
+  const ticks: { idx: number; label: string }[] = []
+  let prevYear = ''
+
+  for (const anchor of anchors) {
+    let idx = parsed.findIndex(d => d >= anchor)
+    if (idx < 0) idx = n - 1
+    if (ticks.length > 0 && ticks[ticks.length - 1].idx === idx) continue
+
+    const dateStr = dates[idx]
+    const year = dateStr.slice(0, 4)
+    const month = dateStr.slice(5, 7)
+    const day = dateStr.slice(8, 10)
+    const yearChanged = prevYear !== '' && year !== prevYear
+
+    let label: string
+    if (timeRange === '3M' || timeRange === '6M') {
+      label = (prevYear === '' || yearChanged) ? `${year.slice(2)}-${month}-${day}` : `${month}-${day}`
+    } else if (timeRange === '1Y') {
+      label = `${year}-${month}`
+    } else {
+      const q = Math.floor((parseInt(month) - 1) / 3) + 1
+      label = `${year}-Q${q}`
+    }
+
+    prevYear = year
+    ticks.push({ idx, label })
+  }
+
+  // Cap at 8 labels to avoid crowding
+  if (ticks.length > 8) {
+    const step = Math.ceil(ticks.length / 8)
+    return ticks.filter((_, i) => i % step === 0)
+  }
+  return ticks
+}
+
 export default function LineChart({
-  series, width = 640, height = 220, showBtc = true,
+  series, width = 640, height = 220, showBtc = true, timeRange = 'all',
 }: {
   series: LineChartSeries
   width?: number
   height?: number
   showBtc?: boolean
+  timeRange?: string
 }) {
   const pad = { t: 16, r: 16, b: 32, l: 56 }
   const W = width - pad.l - pad.r
@@ -27,8 +104,7 @@ export default function LineChart({
   const path = (arr: number[]) =>
     arr.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')
   const yTicks = Array.from({ length: 5 }, (_, i) => min + (max - min) * i / 4)
-  const xStep = Math.max(Math.floor(series.main.length / 5), 1)
-  const xTicks = Array.from({ length: 6 }, (_, i) => Math.min(i * xStep, series.main.length - 1))
+  const xTicks = series.dates ? buildXTicks(series.dates, timeRange) : []
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
@@ -52,9 +128,9 @@ export default function LineChart({
             <line x1={X(seg.idx)} y1={0} x2={X(seg.idx)} y2={H} stroke="#3b82f6" strokeWidth={1} strokeDasharray="3,3" opacity={0.6} />
           </g>
         ))}
-        {xTicks.map(i => (
-          <text key={i} x={X(i)} y={H + 18} textAnchor="middle" fontSize={10} fill="#6b7280">
-            {series.dates?.[i]?.slice(5) ?? ''}
+        {xTicks.map(({ idx, label }) => (
+          <text key={idx} x={X(idx)} y={H + 18} textAnchor="middle" fontSize={10} fill="#6b7280">
+            {label}
           </text>
         ))}
       </g>

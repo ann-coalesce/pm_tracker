@@ -116,13 +116,12 @@ async def create_pm(payload: PMCreate, db: AsyncSession = Depends(get_db)):
     db.add(pm)
     await db.flush()  # get pm.id before commit
 
-    if payload.initial_leverage is not None:
-        lev = PMLeverageHistory(
-            pm_id=pm.id,
-            start_date=date.today(),
-            leverage=payload.initial_leverage,
-        )
-        db.add(lev)
+    initial_lev = payload.initial_leverage or payload.leverage_target or Decimal("1.0")
+    db.add(PMLeverageHistory(
+        pm_id=pm.id,
+        start_date=date.today(),
+        leverage=initial_lev,
+    ))
 
     await db.commit()
     await db.refresh(pm)
