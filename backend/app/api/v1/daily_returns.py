@@ -149,7 +149,30 @@ async def upload_csv(
         db.add(record)
     await db.commit()
 
-    return UploadResult(inserted=len(to_insert), skipped=0, warnings=warnings, errors=[])
+    # --- Auto-update leverage history start_date if this is the first upload ---
+    csv_first_date = csv_dates[0]
+    leverage_start_updated = False
+    leverage_start_date: date | None = None
+
+    lev_result = await db.execute(
+        select(PMLeverageHistory).where(PMLeverageHistory.pm_id == pm_id)
+    )
+    lev_rows = lev_result.scalars().all()
+
+    if len(lev_rows) == 1 and lev_rows[0].start_date > csv_first_date:
+        lev_rows[0].start_date = csv_first_date
+        await db.commit()
+        leverage_start_updated = True
+        leverage_start_date = csv_first_date
+
+    return UploadResult(
+        inserted=len(to_insert),
+        skipped=0,
+        warnings=warnings,
+        errors=[],
+        leverage_start_updated=leverage_start_updated,
+        leverage_start_date=str(leverage_start_date) if leverage_start_date else None,
+    )
 
 
 @router.post("/pms/{pm_id}/returns", response_model=DailyReturnResponse, status_code=201)

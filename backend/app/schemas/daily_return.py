@@ -30,3 +30,5 @@ class UploadResult(BaseModel):
     skipped: int
     warnings: list[str]
     errors: list[str]
+    leverage_start_updated: bool = False
+    leverage_start_date: Optional[str] = None

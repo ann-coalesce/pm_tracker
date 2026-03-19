@@ -297,6 +297,11 @@ export default function UploadPage() {
                         </div>
                       ))}
                     </div>
+                    {result.data.leverage_start_updated && (
+                      <div style={{ background: '#0f2340', border: '1px solid #3b82f660', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#60a5fa', fontSize: 13 }}>
+                        ℹ Leverage history start date updated to {result.data.leverage_start_date}
+                      </div>
+                    )}
                     {result.data.warnings.length > 0 && (
                       <div style={{ background: '#292015', border: '1px solid #f59e0b40', borderRadius: 8, padding: 12, marginBottom: 20 }}>
                         <div style={{ color: '#f59e0b', fontWeight: 600, fontSize: 13, marginBottom: 8 }}>⚠ Warnings</div>

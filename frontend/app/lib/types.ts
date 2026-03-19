@@ -100,6 +100,8 @@ export interface UploadResult {
   skipped: number
   warnings: string[]
   errors: string[]
+  leverage_start_updated?: boolean
+  leverage_start_date?: string | null
 }
 
 export interface PMCreate {
