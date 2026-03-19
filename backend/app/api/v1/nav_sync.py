@@ -104,6 +104,7 @@ async def sync_nav(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
                 return_pct=Decimal("0"),
                 source_type="internal_nav",
                 is_verified=False,
+                flag="gap_filled",
             ))
         await db.commit()
 

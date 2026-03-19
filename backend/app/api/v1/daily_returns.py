@@ -170,6 +170,7 @@ async def upload_csv(
                 return_pct=Decimal("0"),
                 source_type=src,
                 is_verified=False,
+                flag="gap_filled",
             ))
         await db.commit()
 
