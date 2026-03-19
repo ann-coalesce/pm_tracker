@@ -81,7 +81,7 @@ export interface ReturnSource {
   pm_id: string
   start_date: string
   end_date: string | null
-  source_type: 'self_reported' | 'internal_nav' | 'exchange_api'
+  source_type: 'self_reported' | 'internal_nav' | 'exchange_api' | 'gap_filled'
   source_ref: string | null
   note: string | null
 }

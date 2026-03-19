@@ -168,7 +168,7 @@ async def upload_csv(
                 pm_id=pm_id,
                 date=gap_date,
                 return_pct=Decimal("0"),
-                source_type=src,
+                source_type="gap_filled",
                 is_verified=False,
                 flag="gap_filled",
             ))

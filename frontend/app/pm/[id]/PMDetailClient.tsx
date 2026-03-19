@@ -299,9 +299,13 @@ export default function PMDetailClient() {
                     <div style={{ position: 'relative', paddingLeft: 20 }}>
                       <div style={{ position: 'absolute', left: 6, top: 0, bottom: 0, width: 2, background: '#1f2937', borderRadius: 2 }} />
                       {returnSources.map((src, i) => {
-                        const isSelf = src.source_type === 'self_reported'
-                        const dotColor = isSelf ? '#3b82f6' : '#10b981'
-                        const label = isSelf ? 'Self Reported' : src.source_type === 'internal_nav' ? 'Internal NAV' : src.source_type
+                        const dotColor = src.source_type === 'self_reported' ? '#3b82f6'
+                          : src.source_type === 'internal_nav' ? '#10b981'
+                          : '#6b7280'
+                        const label = src.source_type === 'self_reported' ? 'Self Reported'
+                          : src.source_type === 'internal_nav' ? 'Internal NAV'
+                          : src.source_type === 'gap_filled' ? 'Gap Filled'
+                          : src.source_type
                         const dateRange = `${src.start_date} → ${src.end_date ?? 'present'}`
                         return (
                           <div key={src.id} style={{ position: 'relative', marginBottom: i < returnSources.length - 1 ? 20 : 0 }}>
@@ -313,7 +317,10 @@ export default function PMDetailClient() {
                               )}
                               <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 'auto' }}>{dateRange}</span>
                             </div>
-                            {src.note && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>{src.note}</div>}
+                            {src.source_type === 'gap_filled'
+                              ? <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>Auto-filled with return = 0 for missing dates</div>
+                              : src.note && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 3 }}>{src.note}</div>
+                            }
                           </div>
                         )
                       })}

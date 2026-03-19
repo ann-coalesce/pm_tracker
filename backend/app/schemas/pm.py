@@ -107,7 +107,7 @@ class ReturnSourceCreate(BaseModel):
     @field_validator("source_type")
     @classmethod
     def validate_source_type(cls, v: str) -> str:
-        valid = {"self_reported", "internal_nav", "exchange_api"}
+        valid = {"self_reported", "internal_nav", "exchange_api", "gap_filled"}
         if v not in valid:
             raise ValueError(f"source_type must be one of {sorted(valid)}")
         return v

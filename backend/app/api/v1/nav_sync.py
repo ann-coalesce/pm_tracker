@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -78,6 +78,16 @@ async def sync_nav(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
 
+    # --- Fix any existing rows with flag='gap_filled' that have wrong source_type ---
+    await db.execute(
+        update(DailyReturn)
+        .where(DailyReturn.pm_id == pm_id)
+        .where(DailyReturn.flag == "gap_filled")
+        .where(DailyReturn.source_type != "gap_filled")
+        .values(source_type="gap_filled")
+    )
+    await db.commit()
+
     # --- Gap-fill the full date sequence for this PM ---
     gap_dr_result = await db.execute(
         select(DailyReturn.date, DailyReturn.source_type)
@@ -102,7 +112,7 @@ async def sync_nav(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
                 pm_id=pm_id,
                 date=gap_date,
                 return_pct=Decimal("0"),
-                source_type="internal_nav",
+                source_type="gap_filled",
                 is_verified=False,
                 flag="gap_filled",
             ))

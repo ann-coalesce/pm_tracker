@@ -93,7 +93,7 @@ class ReturnSourceConfig(Base):
     __tablename__ = "return_source_config"
     __table_args__ = (
         CheckConstraint(
-            "source_type IN ('self_reported', 'internal_nav', 'exchange_api')",
+            "source_type IN ('self_reported', 'internal_nav', 'exchange_api', 'gap_filled')",
             name="ck_return_source_config_source_type",
         ),
     )
