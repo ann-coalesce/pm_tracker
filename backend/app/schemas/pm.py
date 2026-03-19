@@ -10,6 +10,7 @@ VALID_STATUSES = {"pipeline", "onboarding", "active", "alumni", "inactive"}
 
 class PMCreate(BaseModel):
     name: str
+    status: str = "pipeline"
     strategy_type: Optional[str] = None
     style: Optional[str] = None
     max_capacity: Optional[Decimal] = None

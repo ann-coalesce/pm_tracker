@@ -16,9 +16,8 @@ export default function UnderwaterChart({
   const X = (i: number) => (i / Math.max(series.length - 1, 1)) * W
   // Y=0 is top (0% drawdown), Y=H is bottom (max drawdown)
   const Y = (v: number) => (v / min) * H
-  const pathD =
-    dd.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ') +
-    ` L${W},0 L0,0 Z`
+  const linePts = dd.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')
+  const fillD = linePts + ` L${X(dd.length - 1).toFixed(1)},0 L0,0 Z`
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
@@ -31,7 +30,8 @@ export default function UnderwaterChart({
             </text>
           </g>
         ))}
-        <path d={pathD} fill="#ef444430" stroke="#ef4444" strokeWidth={1.5} />
+        <path d={fillD} fill="#ef444430" stroke="none" />
+        <path d={linePts} fill="none" stroke="#ef4444" strokeWidth={1.5} />
       </g>
     </svg>
   )

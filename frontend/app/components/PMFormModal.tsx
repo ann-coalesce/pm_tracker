@@ -55,7 +55,7 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
     try {
       const payload: PMCreate = {
         name: form.name.trim(),
-        status: form.status as PM['status'],
+        ...(isEdit ? {} : { status: form.status as PM['status'] }),
         exposure_profile: form.exposure_profile || undefined,
         trading_horizon: form.trading_horizon || undefined,
         strategy_type: form.strategy_type || undefined,
@@ -97,12 +97,14 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
               <label style={lbl}>Name *</label>
               <input style={inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Settle Wu" />
             </div>
-            <div>
-              <label style={lbl}>Status</label>
-              <select style={inp} value={form.status} onChange={e => set('status', e.target.value)}>
-                {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
+            {!isEdit && (
+              <div>
+                <label style={lbl}>Status</label>
+                <select style={inp} value={form.status} onChange={e => set('status', e.target.value)}>
+                  {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -77,6 +77,35 @@ async def sync_nav(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
             inserted += 1
 
     await db.commit()
+
+    # --- Gap-fill the full date sequence for this PM ---
+    gap_dr_result = await db.execute(
+        select(DailyReturn.date, DailyReturn.source_type)
+        .where(DailyReturn.pm_id == pm_id)
+        .order_by(DailyReturn.date.asc())
+    )
+    gap_rows: list[tuple[date, str]] = [(r[0], r[1] or "self_reported") for r in gap_dr_result.all()]
+    gap_dates = [r[0] for r in gap_rows]
+    # find missing calendar dates
+    gap_missing: list[date] = []
+    for gi in range(1, len(gap_dates)):
+        d = gap_dates[gi - 1] + timedelta(days=1)
+        while d < gap_dates[gi]:
+            gap_missing.append(d)
+            d += timedelta(days=1)
+    if gap_missing:
+        ri = 0
+        for gap_date in gap_missing:
+            while ri + 1 < len(gap_rows) and gap_rows[ri + 1][0] < gap_date:
+                ri += 1
+            db.add(DailyReturn(
+                pm_id=pm_id,
+                date=gap_date,
+                return_pct=Decimal("0"),
+                source_type="internal_nav",
+                is_verified=False,
+            ))
+        await db.commit()
 
     # --- Rebuild return_source_config from daily_return ---
     # 1. Fetch all daily returns for this PM ordered by date

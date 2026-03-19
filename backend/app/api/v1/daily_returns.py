@@ -149,6 +149,30 @@ async def upload_csv(
         db.add(record)
     await db.commit()
 
+    # --- Gap-fill the full date sequence for this PM ---
+    all_dr_result = await db.execute(
+        select(DailyReturn.date, DailyReturn.source_type)
+        .where(DailyReturn.pm_id == pm_id)
+        .order_by(DailyReturn.date.asc())
+    )
+    all_dr_rows: list[tuple[date, str]] = [(r[0], r[1] or "self_reported") for r in all_dr_result.all()]
+    all_dr_dates = [r[0] for r in all_dr_rows]
+    gaps = _find_gaps(all_dr_dates)
+    if gaps:
+        ri = 0
+        for gap_date in gaps:
+            while ri + 1 < len(all_dr_rows) and all_dr_rows[ri + 1][0] < gap_date:
+                ri += 1
+            src = all_dr_rows[ri][1]
+            db.add(DailyReturn(
+                pm_id=pm_id,
+                date=gap_date,
+                return_pct=Decimal("0"),
+                source_type=src,
+                is_verified=False,
+            ))
+        await db.commit()
+
     # --- Auto-update leverage history start_date if this is the first upload ---
     csv_first_date = csv_dates[0]
     leverage_start_updated = False

@@ -14,8 +14,6 @@ export default function UploadPage() {
   const [pmsLoading, setPmsLoading] = useState(true)
   const [sel, setSel] = useState<PM | null>(null)
   const [src, setSrc] = useState('self_reported')
-  const [sd, setSd] = useState('')
-  const [ed, setEd] = useState('')
   const [drag, setDrag] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ type: 'ok' | 'error'; data: UploadResult } | null>(null)
@@ -186,25 +184,14 @@ export default function UploadPage() {
                     {sel.leverage_target && <span style={{ color: '#6b7280', fontSize: 12 }}>Leverage: {sel.leverage_target}x</span>}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
-                    <div>
-                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>Source Type</label>
-                      <select style={{ ...inp, width: '100%' }} value={src} onChange={e => setSrc(e.target.value)}>
-                        <option value="self_reported">Self Reported</option>
-                        <option value="internal_nav">Internal NAV</option>
-                        <option value="exchange_api">Exchange API</option>
-                      </select>
-                      {src === 'internal_nav' && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>For historical internal data</div>}
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>Start Date *</label>
-                      <input type="date" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} value={sd} onChange={e => setSd(e.target.value)} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>End Date</label>
-                      <input type="date" style={{ ...inp, width: '100%', boxSizing: 'border-box' }} value={ed} onChange={e => setEd(e.target.value)} />
-                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Leave blank = ongoing</div>
-                    </div>
+                  <div style={{ marginBottom: 20, maxWidth: 240 }}>
+                    <label style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, display: 'block' }}>Source Type</label>
+                    <select style={{ ...inp, width: '100%' }} value={src} onChange={e => setSrc(e.target.value)}>
+                      <option value="self_reported">Self Reported</option>
+                      <option value="internal_nav">Internal NAV</option>
+                      <option value="exchange_api">Exchange API</option>
+                    </select>
+                    {src === 'internal_nav' && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>For historical internal data</div>}
                   </div>
 
                   <div style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 6, padding: 12, marginBottom: 20 }}>
