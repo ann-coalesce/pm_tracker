@@ -6,12 +6,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.metrics import calculate_equity_curve, calculate_metrics, calculate_rolling_metrics
-from app.models.pm import DailyReturn, PM, PMLeverageHistory
+from app.models.pm import DailyReturn, PM, PMLeverageHistory, ReturnSourceConfig
 from app.schemas.daily_return import DailyReturnCreate, DailyReturnResponse, UploadResult
 
 router = APIRouter()
@@ -58,6 +58,7 @@ def _find_gaps(sorted_dates: list[date]) -> list[date]:
 async def upload_csv(
     pm_id: uuid.UUID,
     file: UploadFile,
+    overwrite: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     await _get_pm_or_404(pm_id, db)
@@ -111,42 +112,62 @@ async def upload_csv(
             detail={"errors": [f"缺少日期：{missing_str}"]},
         )
 
-    # --- DB continuity check ---
-    last_db_date = await _db_last_date(pm_id, db)
-    if last_db_date is not None:
-        expected_start = last_db_date + timedelta(days=1)
-        if csv_dates[0] != expected_start:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "errors": [
-                        f"DB 最後日期為 {last_db_date}，CSV 應從 {expected_start} 開始"
-                        f"（目前 CSV 起始日期為 {csv_dates[0]}）"
-                    ]
-                },
-            )
+    # --- DB continuity check (skip when overwriting) ---
+    if not overwrite:
+        last_db_date = await _db_last_date(pm_id, db)
+        if last_db_date is not None:
+            expected_start = last_db_date + timedelta(days=1)
+            if csv_dates[0] != expected_start:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "errors": [
+                            f"DB 最後日期為 {last_db_date}，CSV 應從 {expected_start} 開始"
+                            f"（目前 CSV 起始日期為 {csv_dates[0]}）"
+                        ]
+                    },
+                )
 
-    # --- build records ---
+    # --- build / upsert records ---
     warnings: list[str] = []
-    to_insert: list[DailyReturn] = []
+    inserted = updated = skipped = 0
+
+    existing_map: dict[date, tuple[str, uuid.UUID]] = {}
+    if overwrite:
+        ex_result = await db.execute(
+            select(DailyReturn.date, DailyReturn.source_type, DailyReturn.id)
+            .where(DailyReturn.pm_id == pm_id)
+        )
+        existing_map = {r[0]: (r[1], r[2]) for r in ex_result.all()}
 
     for lineno, d, ret in rows:
         flag = None
         if _check_anomaly(ret):
             flag = "anomaly"
             warnings.append(f"第 {lineno} 行（{d}）：return_pct={ret} 超過 ±50%，標記 anomaly")
-        to_insert.append(
-            DailyReturn(
+
+        if overwrite and d in existing_map:
+            src, row_id = existing_map[d]
+            if src == "internal_nav":
+                warnings.append(f"{d}: source_type=internal_nav，跳過（不覆蓋）")
+                skipped += 1
+                continue
+            row = await db.get(DailyReturn, row_id)
+            if row:
+                row.return_pct = ret
+                row.source_type = "self_reported"
+                row.flag = flag
+                updated += 1
+        else:
+            db.add(DailyReturn(
                 pm_id=pm_id,
                 date=d,
                 return_pct=ret,
                 source_type="self_reported",
                 flag=flag,
-            )
-        )
+            ))
+            inserted += 1
 
-    for record in to_insert:
-        db.add(record)
     await db.commit()
 
     # --- Gap-fill the full date sequence for this PM ---
@@ -174,6 +195,30 @@ async def upload_csv(
             ))
         await db.commit()
 
+    # --- Auto-populate return_source_config for self_reported if missing ---
+    existing_sr_config = (await db.execute(
+        select(ReturnSourceConfig).where(
+            ReturnSourceConfig.pm_id == pm_id,
+            ReturnSourceConfig.source_type == "self_reported",
+        )
+    )).scalars().first()
+
+    if existing_sr_config is None:
+        sr_range = (await db.execute(
+            select(func.min(DailyReturn.date), func.max(DailyReturn.date))
+            .where(DailyReturn.pm_id == pm_id)
+            .where(DailyReturn.source_type == "self_reported")
+        )).one()
+        if sr_range[0] is not None:
+            db.add(ReturnSourceConfig(
+                pm_id=pm_id,
+                start_date=sr_range[0],
+                end_date=None,
+                source_type="self_reported",
+                note="Auto-detected from CSV upload",
+            ))
+            await db.commit()
+
     # --- Auto-update leverage history start_date if this is the first upload ---
     csv_first_date = csv_dates[0]
     leverage_start_updated = False
@@ -191,8 +236,9 @@ async def upload_csv(
         leverage_start_date = csv_first_date
 
     return UploadResult(
-        inserted=len(to_insert),
-        skipped=0,
+        inserted=inserted,
+        updated=updated,
+        skipped=skipped,
         warnings=warnings,
         errors=[],
         leverage_start_updated=leverage_start_updated,
@@ -329,3 +375,31 @@ async def list_returns(
 
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.delete("/pms/{pm_id}/returns/self-reported")
+async def delete_self_reported(pm_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    await _get_pm_or_404(pm_id, db)
+
+    count_result = await db.execute(
+        select(func.count()).where(
+            DailyReturn.pm_id == pm_id,
+            DailyReturn.source_type == "self_reported",
+        )
+    )
+    deleted = count_result.scalar_one()
+
+    await db.execute(
+        delete(DailyReturn).where(
+            DailyReturn.pm_id == pm_id,
+            DailyReturn.source_type == "self_reported",
+        )
+    )
+    await db.execute(
+        delete(ReturnSourceConfig).where(
+            ReturnSourceConfig.pm_id == pm_id,
+            ReturnSourceConfig.source_type == "self_reported",
+        )
+    )
+    await db.commit()
+    return {"deleted": deleted}

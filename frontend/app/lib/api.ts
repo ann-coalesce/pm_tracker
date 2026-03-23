@@ -128,12 +128,17 @@ export async function importPMs(file: File): Promise<UploadResult> {
   return handleRes<UploadResult>(res)
 }
 
-export async function uploadReturns(pmId: string, file: File): Promise<UploadResult> {
+export async function uploadReturns(pmId: string, file: File, overwrite = false): Promise<UploadResult> {
   const fd = new FormData()
   fd.append('file', file)
-  const res = await fetch(`${BASE}/v1/pms/${pmId}/returns/upload-csv`, {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/returns/upload-csv?overwrite=${overwrite}`, {
     method: 'POST',
     body: fd,
   })
   return handleRes<UploadResult>(res)
+}
+
+export async function deleteSelfReported(pmId: string): Promise<{ deleted: number }> {
+  const res = await fetch(`${BASE}/v1/pms/${pmId}/returns/self-reported`, { method: 'DELETE' })
+  return handleRes<{ deleted: number }>(res)
 }

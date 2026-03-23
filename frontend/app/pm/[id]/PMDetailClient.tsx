@@ -7,7 +7,7 @@ import LineChart from '../../components/LineChart'
 import UnderwaterChart from '../../components/UnderwaterChart'
 import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
-import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav } from '../../lib/api'
+import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav, deleteSelfReported } from '../../lib/api'
 import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
@@ -42,6 +42,10 @@ export default function PMDetailClient() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+
+  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [levFormOpen, setLevFormOpen] = useState(false)
   const [levForm, setLevForm] = useState({ start_date: '', leverage: '', note: '' })
@@ -292,7 +296,15 @@ export default function PMDetailClient() {
               )}
 
               <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16, marginTop: 16 }}>
-                {secT('Return Source Timeline')}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1f2937', paddingBottom: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Return Source Timeline</div>
+                  {returnSources.some(s => s.source_type === 'self_reported') && (
+                    <button onClick={() => { setDeleteModal(true); setDeleteError(null) }}
+                      style={{ fontSize: 11, color: '#ef4444', background: 'transparent', border: '1px solid #ef444460', borderRadius: 5, padding: '3px 10px', cursor: 'pointer' }}>
+                      Clear Self-reported
+                    </button>
+                  )}
+                </div>
                 {returnSources.length === 0
                   ? <div style={{ color: '#6b7280', fontSize: 13 }}>No return sources configured.</div>
                   : (
@@ -546,6 +558,43 @@ export default function PMDetailClient() {
           )}
         </div>
       </div>
+
+      {deleteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: '#000000bb', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: '#0f172a', border: '1px solid #374151', borderRadius: 12, padding: 28, width: '100%', maxWidth: 420 }}>
+            <h3 style={{ color: '#f9fafb', fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Clear Self-reported Data</h3>
+            <p style={{ color: '#9ca3af', fontSize: 13, margin: '0 0 20px', lineHeight: 1.6 }}>
+              Are you sure you want to delete all self-reported return data? This action cannot be undone.
+            </p>
+            {deleteError && (
+              <div style={{ background: '#2a1515', border: '1px solid #ef444460', borderRadius: 6, padding: '8px 12px', marginBottom: 16, color: '#ef4444', fontSize: 12 }}>{deleteError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true); setDeleteError(null)
+                  try {
+                    await deleteSelfReported(id)
+                    setDeleteModal(false)
+                    load()
+                  } catch (e) {
+                    setDeleteError(e instanceof Error ? e.message : 'Delete failed')
+                  } finally {
+                    setDeleting(false)
+                  }
+                }}
+                style={{ background: deleting ? '#4a1515' : '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 13, cursor: deleting ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+                {deleting ? 'Deleting…' : 'Confirm Delete'}
+              </button>
+              <button onClick={() => setDeleteModal(false)}
+                style={{ background: 'transparent', color: '#9ca3af', border: '1px solid #374151', borderRadius: 6, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {statusModal && (
         <UpdateStatusModal

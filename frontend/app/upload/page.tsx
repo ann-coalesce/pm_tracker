@@ -14,6 +14,7 @@ export default function UploadPage() {
   const [pmsLoading, setPmsLoading] = useState(true)
   const [sel, setSel] = useState<PM | null>(null)
   const [src, setSrc] = useState('self_reported')
+  const [overwrite, setOverwrite] = useState(false)
   const [drag, setDrag] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ type: 'ok' | 'error'; data: UploadResult } | null>(null)
@@ -43,7 +44,7 @@ export default function UploadPage() {
     if (!sel) return
     setResult(null); setUploadError(null); setUploading(true)
     try {
-      const res = await uploadReturns(sel.id, file)
+      const res = await uploadReturns(sel.id, file, overwrite)
       setResult({ type: res.errors.length > 0 ? 'error' : 'ok', data: res })
       setStep(3)
     } catch (e) {
@@ -194,6 +195,12 @@ export default function UploadPage() {
                     {src === 'internal_nav' && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>For historical internal data</div>}
                   </div>
 
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#9ca3af', marginBottom: 20, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={overwrite} onChange={e => setOverwrite(e.target.checked)}
+                      style={{ width: 14, height: 14, accentColor: '#3b82f6', cursor: 'pointer' }} />
+                    Overwrite existing self-reported data
+                  </label>
+
                   <div style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: 6, padding: 12, marginBottom: 20 }}>
                     <div style={{ color: '#60a5fa', fontWeight: 600, fontSize: 12, marginBottom: 6 }}>Expected CSV format</div>
                     <code style={{ color: '#94a3b8', fontSize: 12, display: 'block', lineHeight: 1.8 }}>
@@ -275,6 +282,7 @@ export default function UploadPage() {
                     <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                       {[
                         ['Inserted', result.data.inserted, '#10b981'],
+                        ['Updated',  result.data.updated ?? 0, result.data.updated ? '#3b82f6' : '#6b7280'],
                         ['Skipped',  result.data.skipped,  '#6b7280'],
                         ['Warnings', result.data.warnings.length, result.data.warnings.length > 0 ? '#f59e0b' : '#6b7280'],
                       ].map(([l, v, c]) => (

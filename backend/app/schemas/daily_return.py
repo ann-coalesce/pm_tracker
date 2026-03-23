@@ -27,6 +27,7 @@ class DailyReturnResponse(BaseModel):
 
 class UploadResult(BaseModel):
     inserted: int
+    updated: int = 0
     skipped: int
     warnings: list[str]
     errors: list[str]

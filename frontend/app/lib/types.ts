@@ -97,6 +97,7 @@ export interface LeverageHistory {
 
 export interface UploadResult {
   inserted: number
+  updated?: number
   skipped: number
   warnings: string[]
   errors: string[]
