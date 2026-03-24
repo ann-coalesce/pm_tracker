@@ -406,6 +406,20 @@ export default function PMDetailClient() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
+                  {secT('Legal & Compliance')}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {([
+                      ['Jurisdiction', pm.jurisdiction],
+                      ['Entity Name',  pm.entity_name],
+                    ] as [string, string | null][]).map(([k, v]) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: '#6b7280' }}>{k}</span>
+                        <span style={{ color: '#d1d5db' }}>{v || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
                   {secT('Contact')}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {([

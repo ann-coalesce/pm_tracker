@@ -28,6 +28,8 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
     contact_email: pm?.contact_email ?? '',
     contact_telegram: pm?.contact_telegram ?? '',
     nav_table_key: pm?.nav_table_key ?? '',
+    jurisdiction: pm?.jurisdiction ?? '',
+    entity_name: pm?.entity_name ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +70,8 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
         contact_email: form.contact_email.trim() || undefined,
         contact_telegram: form.contact_telegram.trim() || undefined,
         nav_table_key: form.nav_table_key.trim() || undefined,
+        jurisdiction: form.jurisdiction.trim() || undefined,
+        entity_name: form.entity_name.trim() || undefined,
       }
       await onSave(payload)
       onClose()
@@ -191,6 +195,19 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
             <label style={lbl}>Internal NAV Table Key</label>
             <input style={inp} value={form.nav_table_key} onChange={e => set('nav_table_key', e.target.value)} placeholder="e.g. sp1-sma-settlewu" />
             <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Leave blank for self-reported only.</div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 28 }}>{sec('Legal & Compliance')}
+          <div style={grid}>
+            <div>
+              <label style={lbl}>Entity Name</label>
+              <input style={inp} value={form.entity_name} onChange={e => set('entity_name', e.target.value)} placeholder="e.g. Acme Capital Ltd." />
+            </div>
+            <div>
+              <label style={lbl}>Jurisdiction</label>
+              <input style={inp} value={form.jurisdiction} onChange={e => set('jurisdiction', e.target.value)} placeholder="e.g. Cayman Islands" />
+            </div>
           </div>
         </div>
 

@@ -24,6 +24,8 @@ export interface PM {
   contact_email: string | null
   contact_telegram: string | null
   nav_table_key: string | null
+  jurisdiction: string | null
+  entity_name: string | null
   created_at: string
   updated_at: string | null
   sparkline?: { date: string; nav: number }[]
@@ -126,6 +128,8 @@ export interface PMCreate {
   contact_email?: string
   contact_telegram?: string
   nav_table_key?: string
+  jurisdiction?: string
+  entity_name?: string
 }
 
 export type PMUpdate = Partial<PMCreate>

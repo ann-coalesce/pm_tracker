@@ -362,12 +362,15 @@ export default function UploadPage() {
                 <code style={{ color: '#94a3b8', fontSize: 11, display: 'block', lineHeight: 2 }}>
                   name, status, exposure_profile, trading_horizon, strategy_type,<br />
                   leverage_target, max_capacity, current_aum, gp_commitment,<br />
-                  exchanges, contact_name, contact_email, contact_telegram, notes
+                  exchanges, contact_name, contact_email, contact_telegram,<br />
+                  jurisdiction, entity_name
                 </code>
                 <div style={{ color: '#6b7280', fontSize: 11, marginTop: 8, lineHeight: 1.7 }}>
                   • <strong style={{ color: '#9ca3af' }}>name</strong> is required — rows without name are skipped<br />
                   • <strong style={{ color: '#9ca3af' }}>exchanges</strong>: comma-separated within the cell (e.g. &quot;Binance,OKX&quot;)<br />
                   • <strong style={{ color: '#9ca3af' }}>status</strong>: pipeline / onboarding / active / alumni / inactive — defaults to pipeline<br />
+                  • <strong style={{ color: '#9ca3af' }}>jurisdiction</strong>: e.g. Cayman Islands, BVI, Singapore<br />
+                  • <strong style={{ color: '#9ca3af' }}>entity_name</strong>: legal entity name<br />
                   • First leverage history entry is auto-created (start_date = today)
                 </div>
               </div>

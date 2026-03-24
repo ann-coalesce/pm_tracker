@@ -211,6 +211,8 @@ async def import_pms_csv(
             contact_name=(row.get("contact_name") or "").strip() or None,
             contact_email=(row.get("contact_email") or "").strip() or None,
             contact_telegram=(row.get("contact_telegram") or "").strip() or None,
+            jurisdiction=(row.get("jurisdiction") or "").strip() or None,
+            entity_name=(row.get("entity_name") or "").strip() or None,
         )
         db.add(pm)
         await db.flush()

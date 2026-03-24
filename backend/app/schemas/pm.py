@@ -24,6 +24,8 @@ class PMCreate(BaseModel):
     contact_email: Optional[str] = None
     contact_telegram: Optional[str] = None
     nav_table_key: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    entity_name: Optional[str] = None
     initial_leverage: Optional[Decimal] = None
 
 
@@ -42,6 +44,8 @@ class PMUpdate(BaseModel):
     contact_email: Optional[str] = None
     contact_telegram: Optional[str] = None
     nav_table_key: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    entity_name: Optional[str] = None
 
 
 class PMStatusUpdate(BaseModel):
@@ -74,6 +78,8 @@ class PMResponse(BaseModel):
     contact_email: Optional[str]
     contact_telegram: Optional[str]
     nav_table_key: Optional[str]
+    jurisdiction: Optional[str]
+    entity_name: Optional[str]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 

@@ -10,10 +10,11 @@ import { getPMs, createPM, updatePM } from './lib/api'
 import type { PM, PMCreate, PMUpdate } from './lib/types'
 
 const COLUMN_GROUPS = [
-  { key: 'strategy',     label: 'Strategy',     default: true  },
-  { key: 'metrics',      label: 'Metrics',      default: true  },
-  { key: 'track_record', label: 'Track Record', default: false },
-  { key: 'fund_info',    label: 'Fund Info',    default: true  },
+  { key: 'strategy',     label: 'Strategy',           default: true  },
+  { key: 'metrics',      label: 'Metrics',            default: true  },
+  { key: 'track_record', label: 'Track Record',       default: false },
+  { key: 'fund_info',    label: 'Fund Info',          default: true  },
+  { key: 'legal',        label: 'Legal & Compliance', default: false },
 ]
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : n.toFixed(d) + '%'
@@ -97,6 +98,8 @@ function rowVal(row: PMRow, col: string, metricMode: string): number | string | 
     case 'current_aum':      return row.current_aum
     case 'max_capacity':     return row.max_capacity
     case 'gp_commitment':    return row.gp_commitment
+    case 'jurisdiction':     return row.jurisdiction
+    case 'entity_name':      return row.entity_name
     default:                 return null
   }
 }
@@ -253,6 +256,7 @@ export default function PMListPage() {
                 {visGroups.metrics      && <th colSpan={8} style={gh('#34d399')}>Metrics {metricMode === 'std' && <span style={{ color: '#6b7280', fontWeight: 400 }}>(1x)</span>}</th>}
                 {visGroups.track_record && <th colSpan={3} style={gh('#60a5fa')}>Track Record</th>}
                 {visGroups.fund_info    && <th colSpan={5} style={gh('#fb923c')}>Fund Info</th>}
+                {visGroups.legal        && <th colSpan={2} style={gh('#c084fc')}>Legal &amp; Compliance</th>}
                 <th style={gh()} />
               </tr>
               <tr>
@@ -285,6 +289,10 @@ export default function PMListPage() {
                   <th style={th('utilization')}>Cap. Used</th>
                   <th style={th('gp_commitment', 'right')} onClick={() => sort('gp_commitment')}>GP Commit.</th>
                   <th style={th('exchanges')}>Exchanges</th>
+                </>}
+                {visGroups.legal && <>
+                  <th style={th('jurisdiction')} onClick={() => sort('jurisdiction')}>Jurisdiction{sortCol === 'jurisdiction' ? (sortDir > 0 ? '↑' : '↓') : ''}</th>
+                  <th style={th('entity_name')} onClick={() => sort('entity_name')}>Entity Name{sortCol === 'entity_name' ? (sortDir > 0 ? '↑' : '↓') : ''}</th>
                 </>}
                 <th style={th('actions')} />
               </tr>
@@ -338,6 +346,10 @@ export default function PMListPage() {
                       <td style={td({ minWidth: 90 })}><CapacityBar aum={row.current_aum} max={row.max_capacity} /></td>
                       <td style={td({ color: '#d1d5db', textAlign: 'right' })}>{fmtM(row.gp_commitment)}</td>
                       <td style={td({ fontSize: 11, color: '#9ca3af' })}>{(row.exchanges ?? []).join(', ') || '—'}</td>
+                    </>}
+                    {visGroups.legal && <>
+                      <td style={td({ color: '#d1d5db' })}>{row.jurisdiction || '—'}</td>
+                      <td style={td({ color: '#d1d5db' })}>{row.entity_name || '—'}</td>
                     </>}
                     <td style={td()}>
                       <button onClick={() => { setEditingPM(row); setModal('edit') }}
