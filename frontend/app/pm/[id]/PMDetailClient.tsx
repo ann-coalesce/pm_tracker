@@ -8,7 +8,7 @@ import UnderwaterChart from '../../components/UnderwaterChart'
 import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
 import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav, deleteSelfReported } from '../../lib/api'
-import type { PM, PMMetrics, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
+import type { PM, PMMetrics, PMMetricsResponse, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
@@ -28,6 +28,7 @@ export default function PMDetailClient() {
 
   const [pm, setPm] = useState<PM | null>(null)
   const [metrics, setMetrics] = useState<PMMetrics | null>(null)
+  const [inceptionMetrics, setInceptionMetrics] = useState<PMMetrics | null>(null)
   const [curve, setCurve] = useState<EquityCurvePoint[]>([])
   const [statusLog, setStatusLog] = useState<PMStatusLog[]>([])
   const [leverageHistory, setLeverageHistory] = useState<LeverageHistory[]>([])
@@ -59,19 +60,38 @@ export default function PMDetailClient() {
     getLeverageHistory(id).then(setLeverageHistory).catch(() => {})
   }
 
+  const getMetricsParams = (range: string) => {
+    const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365 }
+    const n = days[range]
+    if (!n) return {}
+    const d = new Date(); d.setDate(d.getDate() - n)
+    return { start_date: d.toISOString().slice(0, 10) }
+  }
+
+  const applyMetricsResp = (resp: PMMetricsResponse) => {
+    setMetrics(resp.metrics)
+    setInceptionMetrics(resp.inception_metrics)
+  }
+
   const load = () => {
     if (!id) return
     setLoading(true); setError(null)
-    Promise.all([getPM(id), getPMMetrics(id), getPMEquityCurve(id), getPMStatusLog(id), getLeverageHistory(id), getReturnSources(id)])
-      .then(([pmData, metricsData, curveData, logData, levData, srcData]) => {
-        setPm(pmData); setMetrics(metricsData); setCurve(curveData); setStatusLog(logData)
+    Promise.all([getPM(id), getPMMetrics(id, getMetricsParams(timeRange)), getPMEquityCurve(id), getPMStatusLog(id), getLeverageHistory(id), getReturnSources(id)])
+      .then(([pmData, metricsResp, curveData, logData, levData, srcData]) => {
+        setPm(pmData); applyMetricsResp(metricsResp); setCurve(curveData); setStatusLog(logData)
         setLeverageHistory(levData as LeverageHistory[])
         setReturnSources(srcData as ReturnSource[])
         setLoading(false)
       })
       .catch(e => { setError(e.message); setLoading(false) })
   }
-  useEffect(load, [id])
+  useEffect(load, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch metrics when time range changes
+  useEffect(() => {
+    if (!id) return
+    getPMMetrics(id, getMetricsParams(timeRange)).then(applyMetricsResp).catch(() => {})
+  }, [timeRange]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const slicedCurve = useMemo(() => {
     if (!curve.length) return curve
@@ -122,15 +142,24 @@ export default function PMDetailClient() {
   const maxDD        = isStd ? (metrics?.std_max_drawdown ?? null)             : (metrics?.max_drawdown ?? null)
   const currentDD    = isStd ? (metrics?.std_current_drawdown ?? null)         : (metrics?.current_drawdown ?? null)
 
+  const incAnnReturn = isStd ? (inceptionMetrics?.std_cagr ?? null)                   : (inceptionMetrics?.cagr ?? null)
+  const incSharpe    = isStd ? (inceptionMetrics?.std_sharpe_ratio ?? null)            : (inceptionMetrics?.sharpe_ratio ?? null)
+  const incSortino   = isStd ? (inceptionMetrics?.std_sortino_ratio ?? null)           : (inceptionMetrics?.sortino_ratio ?? null)
+  const incCalmar    = isStd ? (inceptionMetrics?.std_calmar_ratio ?? null)            : (inceptionMetrics?.calmar_ratio ?? null)
+  const incAnnVol    = isStd ? (inceptionMetrics?.std_ann_volatility ?? null)          : (inceptionMetrics?.ann_volatility ?? null)
+  const incAnnDVol   = isStd ? (inceptionMetrics?.std_ann_downside_volatility ?? null) : (inceptionMetrics?.ann_downside_volatility ?? null)
+  const incMaxDD     = isStd ? (inceptionMetrics?.std_max_drawdown ?? null)            : (inceptionMetrics?.max_drawdown ?? null)
+  const incCurrentDD = isStd ? (inceptionMetrics?.std_current_drawdown ?? null)        : (inceptionMetrics?.current_drawdown ?? null)
+
   const metricCards = [
-    { label: 'Ann. Return', value: fmt(annReturn),  color: (annReturn ?? 0) >= 0 ? '#10b981' : '#ef4444' },
-    { label: 'Sharpe',      value: fmtR(sharpe),    color: '#3b82f6' },
-    { label: 'Sortino',     value: fmtR(sortino),   color: '#6366f1' },
-    { label: 'Calmar',      value: fmtR(calmar),    color: '#8b5cf6' },
-    { label: 'Ann. Vol',    value: fmt(annVol),      color: '#f59e0b' },
-    { label: 'Ann. D.Vol',  value: fmt(annDVol),     color: '#f59e0b' },
-    { label: 'Max DD',      value: fmt(maxDD),       color: '#ef4444' },
-    { label: 'Current DD',  value: fmt(currentDD),   color: (currentDD ?? 0) < 0 ? '#ef4444' : '#6b7280' },
+    { label: 'Ann. Return', value: fmt(annReturn),  color: (annReturn ?? 0) >= 0 ? '#10b981' : '#ef4444', inception: fmt(incAnnReturn) },
+    { label: 'Sharpe',      value: fmtR(sharpe),    color: '#3b82f6',  inception: fmtR(incSharpe) },
+    { label: 'Sortino',     value: fmtR(sortino),   color: '#6366f1',  inception: fmtR(incSortino) },
+    { label: 'Calmar',      value: fmtR(calmar),    color: '#8b5cf6',  inception: fmtR(incCalmar) },
+    { label: 'Ann. Vol',    value: fmt(annVol),      color: '#f59e0b',  inception: fmt(incAnnVol) },
+    { label: 'Ann. D.Vol',  value: fmt(annDVol),     color: '#f59e0b',  inception: fmt(incAnnDVol) },
+    { label: 'Max DD',      value: fmt(maxDD),       color: '#ef4444',  inception: fmt(incMaxDD) },
+    { label: 'Current DD',  value: fmt(currentDD),   color: (currentDD ?? 0) < 0 ? '#ef4444' : '#6b7280', inception: fmt(incCurrentDD) },
   ]
 
   const tabSt = (t: string): React.CSSProperties => ({
@@ -190,11 +219,17 @@ export default function PMDetailClient() {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 8 }}>
+                Metrics: {timeRange === 'all' ? 'Since Inception' : `Last ${timeRange}`}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
                 {metricCards.map(m => (
                   <div key={m.label} style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: '12px 14px' }}>
                     <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{m.label}</div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: m.color }}>{m.value}</div>
+                    {timeRange !== 'all' && (
+                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>inception: {m.inception}</div>
+                    )}
                   </div>
                 ))}
               </div>

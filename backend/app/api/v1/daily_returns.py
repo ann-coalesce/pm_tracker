@@ -311,6 +311,14 @@ async def _fetch_returns(
     return [(row[0], Decimal(str(row[1]))) for row in result.all()]
 
 
+def _fmt_metrics(m: dict) -> dict:
+    return {
+        **m,
+        "track_record_start": str(m["track_record_start"]),
+        "track_record_end": str(m["track_record_end"]),
+    }
+
+
 @router.get("/pms/{pm_id}/metrics")
 async def get_metrics(
     pm_id: uuid.UUID,
@@ -320,20 +328,27 @@ async def get_metrics(
     db: AsyncSession = Depends(get_db),
 ):
     await _get_pm_or_404(pm_id, db)
-    returns = await _fetch_returns(pm_id, db, start_date, end_date)
+    lev_hist = await _fetch_leverage_history(pm_id, db)
 
+    # Filtered metrics (based on start_date / end_date)
+    returns = await _fetch_returns(pm_id, db, start_date, end_date)
     if len(returns) < 2:
         raise HTTPException(status_code=400, detail="資料不足，至少需要 2 筆")
-
-    lev_hist = await _fetch_leverage_history(pm_id, db)
     metrics = calculate_metrics(returns, risk_free_rate, leverage_history=lev_hist)
+
+    # Inception metrics (all data) — only re-fetch when a date filter is active
+    if start_date or end_date:
+        inc_returns = await _fetch_returns(pm_id, db)
+        inception_metrics = calculate_metrics(inc_returns, risk_free_rate, leverage_history=lev_hist)
+    else:
+        inception_metrics = metrics
+
     rolling_90 = calculate_rolling_metrics(returns, 90, risk_free_rate)
     rolling_180 = calculate_rolling_metrics(returns, 180, risk_free_rate)
 
     return {
-        **metrics,
-        "track_record_start": str(metrics["track_record_start"]),
-        "track_record_end": str(metrics["track_record_end"]),
+        "metrics": _fmt_metrics(metrics),
+        "inception_metrics": _fmt_metrics(inception_metrics),
         "rolling_sharpe_90d": [
             {"date": str(p["date"]), "sharpe": p["sharpe"]} for p in rolling_90
         ],

@@ -60,6 +60,11 @@ export interface PMMetrics {
   std_current_drawdown: number | null
 }
 
+export interface PMMetricsResponse {
+  metrics: PMMetrics
+  inception_metrics: PMMetrics
+}
+
 export interface EquityCurvePoint {
   date: string
   nav: number

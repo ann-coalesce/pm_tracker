@@ -1,6 +1,6 @@
 import type {
   PM, PMCreate, PMUpdate, PMStatusUpdate,
-  PMMetrics, EquityCurvePoint, PMStatusLog, UploadResult, LeverageHistory,
+  PMMetricsResponse, EquityCurvePoint, PMStatusLog, UploadResult, LeverageHistory,
   ReturnSource, SyncResult,
 } from './types'
 
@@ -58,12 +58,12 @@ export async function updatePMStatus(id: string, data: PMStatusUpdate): Promise<
 export async function getPMMetrics(id: string, params?: {
   start_date?: string
   end_date?: string
-}): Promise<PMMetrics> {
+}): Promise<PMMetricsResponse> {
   const q = new URLSearchParams()
   if (params?.start_date) q.set('start_date', params.start_date)
   if (params?.end_date) q.set('end_date', params.end_date)
   const res = await fetch(`${BASE}/v1/pms/${id}/metrics?${q}`)
-  return handleRes<PMMetrics>(res)
+  return handleRes<PMMetricsResponse>(res)
 }
 
 export async function getPMEquityCurve(id: string, params?: {
