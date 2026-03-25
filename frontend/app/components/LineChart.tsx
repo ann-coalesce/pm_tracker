@@ -98,12 +98,33 @@ export default function LineChart({
   if (series.main.length < 2) return null
 
   const allVals = [...series.main, ...(showBtc && series.btc?.length ? series.btc : [])]
-  const min = Math.min(...allVals), max = Math.max(...allVals), range = max - min || 1
+  const dataMin = Math.min(...allVals), dataMax = Math.max(...allVals)
+
+  // Y axis: multiples of 0.5, 1.0 always included, padded above
+  const STEP = 0.5
+  const yAxisMin = Math.max(0, Math.floor(dataMin / STEP) * STEP)
+  const yAxisMax = (Math.ceil(dataMax / STEP) + 1) * STEP
+  const range = yAxisMax - yAxisMin || 1
+
   const X = (i: number) => (i / Math.max(series.main.length - 1, 1)) * W
-  const Y = (v: number) => H - ((v - min) / range) * H
+  const Y = (v: number) => H - ((v - yAxisMin) / range) * H
   const path = (arr: number[]) =>
     arr.map((v, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')
-  const yTicks = Array.from({ length: 5 }, (_, i) => min + (max - min) * i / 4)
+
+  // Build ticks at every 0.5, then thin if too many
+  let yTicks: number[] = []
+  for (let v = yAxisMin; v <= yAxisMax + 1e-9; v = Math.round((v + STEP) * 1000) / 1000) {
+    yTicks.push(v)
+  }
+  // Thin to max 8 ticks by skipping every other (always keep 1.0)
+  while (yTicks.length > 8) {
+    const next: number[] = []
+    for (let i = 0; i < yTicks.length; i++) {
+      if (yTicks[i] === 1 || i % 2 === 0) next.push(yTicks[i])
+    }
+    yTicks = next
+  }
+
   const xTicks = series.dates ? buildXTicks(series.dates, timeRange) : []
 
   return (
@@ -112,10 +133,10 @@ export default function LineChart({
         {yTicks.map((v, i) => (
           <g key={i}>
             <line x1={0} y1={Y(v)} x2={W} y2={Y(v)} stroke="#1f2937" strokeWidth={1} />
-            <text x={-8} y={Y(v) + 4} textAnchor="end" fontSize={10} fill="#6b7280">{v.toFixed(2)}</text>
+            <text x={-8} y={Y(v) + 4} textAnchor="end" fontSize={10} fill="#6b7280">{v.toFixed(1)}</text>
           </g>
         ))}
-        {min <= 1 && max >= 1 && (
+        {yAxisMin <= 1 && yAxisMax >= 1 && (
           <line x1={0} y1={Y(1)} x2={W} y2={Y(1)} stroke="#374151" strokeWidth={1} strokeDasharray="4,3" />
         )}
         {showBtc && series.btc && series.btc.length > 1 && (
