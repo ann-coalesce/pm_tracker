@@ -1,6 +1,6 @@
 import type {
   PM, PMCreate, PMUpdate, PMStatusUpdate,
-  PMMetricsResponse, EquityCurvePoint, PMStatusLog, UploadResult, LeverageHistory,
+  PMMetricsResponse, EquityCurvePoint, BenchmarkPoint, PMStatusLog, UploadResult, LeverageHistory,
   ReturnSource, SyncResult,
 } from './types'
 
@@ -141,4 +141,15 @@ export async function uploadReturns(pmId: string, file: File, overwrite = false)
 export async function deleteSelfReported(pmId: string): Promise<{ deleted: number }> {
   const res = await fetch(`${BASE}/v1/pms/${pmId}/returns/self-reported`, { method: 'DELETE' })
   return handleRes<{ deleted: number }>(res)
+}
+
+export async function getBenchmarkEquityCurve(
+  symbol: string,
+  params?: { start_date?: string; end_date?: string },
+): Promise<BenchmarkPoint[]> {
+  const q = new URLSearchParams()
+  if (params?.start_date) q.set('start_date', params.start_date)
+  if (params?.end_date) q.set('end_date', params.end_date)
+  const res = await fetch(`${BASE}/v1/benchmarks/${symbol}/equity-curve?${q}`)
+  return handleRes<BenchmarkPoint[]>(res)
 }

@@ -73,6 +73,11 @@ export interface EquityCurvePoint {
   std_nav: number
 }
 
+export interface BenchmarkPoint {
+  date: string
+  nav: number
+}
+
 export interface PMStatusLog {
   id: string
   pm_id: string

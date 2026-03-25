@@ -1,18 +1,33 @@
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.v1.router import router as v1_router
+from app.core.benchmark_sync import sync_benchmark
 from app.core.database import engine
+
+scheduler = AsyncIOScheduler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
+    scheduler.add_job(
+        sync_benchmark,
+        "cron",
+        hour=1,
+        minute=0,
+        kwargs={"symbol": "BTCUSDT", "full": False},
+        id="benchmark_daily_sync",
+        replace_existing=True,
+    )
+    scheduler.start()
     yield
     # shutdown
+    scheduler.shutdown(wait=False)
     await engine.dispose()
 
 

@@ -7,8 +7,8 @@ import LineChart from '../../components/LineChart'
 import UnderwaterChart from '../../components/UnderwaterChart'
 import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
-import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav, deleteSelfReported } from '../../lib/api'
-import type { PM, PMMetrics, PMMetricsResponse, EquityCurvePoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
+import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav, deleteSelfReported, getBenchmarkEquityCurve } from '../../lib/api'
+import type { PM, PMMetrics, PMMetricsResponse, EquityCurvePoint, BenchmarkPoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
@@ -39,6 +39,8 @@ export default function PMDetailClient() {
   const [returnType, setReturnType] = useState('actual')
   const [timeRange, setTimeRange] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
+  const [showBtc, setShowBtc] = useState(false)
+  const [btcCurve, setBtcCurve] = useState<BenchmarkPoint[]>([])
 
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
@@ -93,6 +95,19 @@ export default function PMDetailClient() {
     getPMMetrics(id, getMetricsParams(timeRange)).then(applyMetricsResp).catch(() => {})
   }, [timeRange]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch BTC benchmark curve when toggled on or time range changes
+  useEffect(() => {
+    if (!showBtc || !id) { setBtcCurve([]); return }
+    const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365 }
+    const n = days[timeRange]
+    const params: { start_date?: string } = {}
+    if (n) {
+      const d = new Date(); d.setDate(d.getDate() - n)
+      params.start_date = d.toISOString().slice(0, 10)
+    }
+    getBenchmarkEquityCurve('BTCUSDT', params).then(setBtcCurve).catch(() => setBtcCurve([]))
+  }, [showBtc, timeRange, id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const slicedCurve = useMemo(() => {
     if (!curve.length) return curve
     const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365, all: Infinity }
@@ -111,11 +126,23 @@ export default function PMDetailClient() {
     })
   }, [returnSources, slicedCurve])
 
+  const btcAligned = useMemo(() => {
+    if (!showBtc || !btcCurve.length || !slicedCurve.length) return undefined
+    const btcMap = new Map(btcCurve.map(p => [p.date, p.nav]))
+    let lastNav = btcCurve[0].nav
+    return slicedCurve.map(p => {
+      const nav = btcMap.get(p.date)
+      if (nav !== undefined) lastNav = nav
+      return lastNav
+    })
+  }, [showBtc, btcCurve, slicedCurve])
+
   const series = useMemo(() => ({
     main: slicedCurve.map(p => returnType === 'std' ? p.std_nav : p.nav),
     dates: slicedCurve.map(p => p.date),
     sources: sourceMarkers,
-  }), [slicedCurve, returnType, sourceMarkers])
+    btc: btcAligned,
+  }), [slicedCurve, returnType, sourceMarkers, btcAligned])
 
   if (loading) return (
     <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -251,6 +278,16 @@ export default function PMDetailClient() {
                     </button>
                   ))}
                 </div>
+                <button
+                  onClick={() => setShowBtc(v => !v)}
+                  style={{
+                    padding: '4px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                    border: `1px solid ${showBtc ? '#f59e0b' : '#374151'}`,
+                    background: showBtc ? '#2a1f00' : 'transparent',
+                    color: showBtc ? '#f59e0b' : '#9ca3af',
+                  }}>
+                  BTC
+                </button>
                 {pm.nav_table_key && (
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {syncResult && !syncError && (
@@ -294,9 +331,15 @@ export default function PMDetailClient() {
                       Source change
                     </span>
                   )}
+                  {showBtc && btcAligned && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af' }}>
+                      <svg width="20" height="10" style={{ display: 'block' }}><line x1="0" y1="5" x2="20" y2="5" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="5,3" opacity="0.8" /></svg>
+                      BTC
+                    </span>
+                  )}
                 </div>
                 {series.main.length >= 2
-                  ? <LineChart series={series} showBtc={false} timeRange={timeRange} />
+                  ? <LineChart series={series} showBtc={showBtc} timeRange={timeRange} />
                   : <div style={{ color: '#6b7280', fontSize: 13, padding: '20px 16px', textAlign: 'center' }}>No return data available</div>
                 }
               </div>

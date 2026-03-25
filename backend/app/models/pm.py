@@ -159,3 +159,13 @@ class PMLeverageHistory(Base):
     )
 
     pm: Mapped["PM"] = relationship(back_populates="leverage_history")
+
+
+class BenchmarkDaily(Base):
+    __tablename__ = "benchmark_daily"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True, nullable=False)
+    symbol: Mapped[str] = mapped_column(String(20), primary_key=True, nullable=False)
+    close_price: Mapped[float] = mapped_column(Numeric(30, 10), nullable=False)
+    return_pct: Mapped[float | None] = mapped_column(Numeric(20, 10), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(50), default="binance")
