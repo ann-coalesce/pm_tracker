@@ -21,6 +21,19 @@ export default function UploadPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // ── Searchable dropdown state ─────────────────────────────────
+  const [ddQuery, setDdQuery] = useState('')
+  const [ddOpen, setDdOpen] = useState(false)
+  const ddRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ddRef.current && !ddRef.current.contains(e.target as Node)) setDdOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   // ── Import PMs state ─────────────────────────────────────────
   const [impDrag, setImpDrag] = useState(false)
   const [impUploading, setImpUploading] = useState(false)
@@ -150,22 +163,83 @@ export default function UploadPage() {
                   {pmsLoading ? (
                     <div style={{ color: '#6b7280', fontSize: 13 }}>Loading PMs…</div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                      {pms.map(pm => (
-                        <div key={pm.id} onClick={() => setSel(pm)}
-                          style={{
-                            padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
-                            border: `1px solid ${sel?.id === pm.id ? '#3b82f6' : '#374151'}`,
-                            background: sel?.id === pm.id ? '#1e2a3a' : '#111827',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          }}>
-                          <div>
-                            <span style={{ color: '#fbbf24', fontWeight: 500 }}>{pm.name}</span>
-                            <span style={{ color: '#6b7280', fontSize: 12, marginLeft: 12 }}>{pm.strategy_type || '—'}</span>
-                          </div>
-                          <StatusBadge status={pm.status} />
+                    <div style={{ marginBottom: 20 }}>
+                      {/* Searchable dropdown */}
+                      <div ref={ddRef} style={{ position: 'relative', maxWidth: 420 }}>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            value={sel && !ddOpen ? sel.name : ddQuery}
+                            placeholder="Search PM by name..."
+                            onFocus={() => { setDdOpen(true); if (sel) setDdQuery('') }}
+                            onChange={e => { setDdQuery(e.target.value); setDdOpen(true) }}
+                            style={{
+                              width: '100%', boxSizing: 'border-box',
+                              background: '#1f2937', border: `1px solid ${ddOpen ? '#3b82f6' : '#374151'}`,
+                              borderRadius: 6, padding: '9px 36px 9px 12px',
+                              color: '#f9fafb', fontSize: 13, outline: 'none',
+                            }}
+                          />
+                          {sel && (
+                            <button
+                              onClick={() => { setSel(null); setDdQuery(''); setDdOpen(false) }}
+                              style={{
+                                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                                background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer',
+                                fontSize: 16, lineHeight: 1, padding: '0 2px',
+                              }}>×</button>
+                          )}
                         </div>
-                      ))}
+                        {ddOpen && (
+                          <div style={{
+                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                            background: '#111827', border: '1px solid #374151', borderRadius: 6,
+                            marginTop: 4, maxHeight: 280, overflowY: 'auto',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                          }}>
+                            {(() => {
+                              const filtered = pms.filter(p =>
+                                p.name.toLowerCase().includes(ddQuery.toLowerCase())
+                              )
+                              if (filtered.length === 0) return (
+                                <div style={{ padding: '12px 16px', color: '#6b7280', fontSize: 13 }}>No PMs found</div>
+                              )
+                              return filtered.map(pm => (
+                                <div
+                                  key={pm.id}
+                                  onMouseDown={() => { setSel(pm); setDdQuery(''); setDdOpen(false) }}
+                                  style={{
+                                    padding: '10px 14px', cursor: 'pointer', display: 'flex',
+                                    alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                                    background: sel?.id === pm.id ? '#1e2a3a' : 'transparent',
+                                    borderBottom: '1px solid #1f2937',
+                                  }}
+                                  onMouseEnter={e => { if (sel?.id !== pm.id) (e.currentTarget as HTMLDivElement).style.background = '#1f2937' }}
+                                  onMouseLeave={e => { if (sel?.id !== pm.id) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                    <span style={{ color: '#fbbf24', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pm.name}</span>
+                                    <span style={{ color: '#6b7280', fontSize: 12, whiteSpace: 'nowrap' }}>{pm.strategy_type || '—'}</span>
+                                  </div>
+                                  <StatusBadge status={pm.status} />
+                                </div>
+                              ))
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Selected PM confirmation card */}
+                      {sel && (
+                        <div style={{
+                          marginTop: 12, padding: '10px 14px', borderRadius: 8,
+                          border: '1px solid #3b82f6', background: '#1e2a3a',
+                          display: 'flex', alignItems: 'center', gap: 12, maxWidth: 420,
+                        }}>
+                          <span style={{ color: '#fbbf24', fontWeight: 500 }}>{sel.name}</span>
+                          <StatusBadge status={sel.status} />
+                          {sel.leverage_target && <span style={{ color: '#6b7280', fontSize: 12 }}>Leverage: {sel.leverage_target}x</span>}
+                        </div>
+                      )}
                     </div>
                   )}
                   <button onClick={() => sel && setStep(2)} disabled={!sel}
