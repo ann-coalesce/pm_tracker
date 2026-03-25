@@ -95,19 +95,6 @@ export default function PMDetailClient() {
     getPMMetrics(id, getMetricsParams(timeRange)).then(applyMetricsResp).catch(() => {})
   }, [timeRange]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch BTC benchmark curve when toggled on or time range changes
-  useEffect(() => {
-    if (!showBtc || !id) { setBtcCurve([]); return }
-    const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365 }
-    const n = days[timeRange]
-    const params: { start_date?: string } = {}
-    if (n) {
-      const d = new Date(); d.setDate(d.getDate() - n)
-      params.start_date = d.toISOString().slice(0, 10)
-    }
-    getBenchmarkEquityCurve('BTCUSDT', params).then(setBtcCurve).catch(() => setBtcCurve([]))
-  }, [showBtc, timeRange, id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const slicedCurve = useMemo(() => {
     if (!curve.length) return curve
     const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365, all: Infinity }
@@ -125,6 +112,13 @@ export default function PMDetailClient() {
       return [{ idx, label: `Source: ${src.source_type}, from ${src.start_date}` }]
     })
   }, [returnSources, slicedCurve])
+
+  // Fetch BTC benchmark curve aligned to PM curve's first date
+  useEffect(() => {
+    if (!showBtc || !id || !slicedCurve.length) { setBtcCurve([]); return }
+    const startDate = slicedCurve[0].date
+    getBenchmarkEquityCurve('BTCUSDT', { start_date: startDate }).then(setBtcCurve).catch(() => setBtcCurve([]))
+  }, [showBtc, slicedCurve, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btcAligned = useMemo(() => {
     if (!showBtc || !btcCurve.length || !slicedCurve.length) return undefined
