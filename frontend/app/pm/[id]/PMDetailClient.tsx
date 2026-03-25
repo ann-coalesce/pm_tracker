@@ -434,33 +434,6 @@ export default function PMDetailClient() {
                     ))}
                   </div>
                 </div>
-                <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
-                  {secT('Return Sources')}
-                  {returnSources.length === 0
-                    ? <div style={{ color: '#6b7280', fontSize: 13 }}>No return sources configured.</div>
-                    : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {returnSources.map(src => (
-                          <div key={src.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, borderBottom: '1px solid #1f2937', paddingBottom: 8 }}>
-                            <div>
-                              <span style={{ color: '#d1d5db', fontWeight: 500 }}>{src.source_type}</span>
-                              {src.source_ref && <span style={{ color: '#6b7280', marginLeft: 6 }}>({src.source_ref})</span>}
-                              {src.note && <div style={{ color: '#6b7280', marginTop: 2 }}>{src.note}</div>}
-                            </div>
-                            <div style={{ color: '#9ca3af', textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                              {src.start_date} → {src.end_date ?? 'present'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  }
-                  {pm.nav_table_key && (
-                    <div style={{ marginTop: 10, fontSize: 11, color: '#6b7280' }}>
-                      NAV key: <code style={{ fontFamily: 'monospace', background: '#0f172a', padding: '1px 5px', borderRadius: 3, color: '#fbbf24' }}>{pm.nav_table_key}</code>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
