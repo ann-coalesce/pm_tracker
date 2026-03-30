@@ -78,20 +78,18 @@ def _ms_to_date(ms: int) -> date:
 async def sync_benchmark(symbol: str = "BTCUSDT", full: bool = False) -> dict:
     """
     Sync benchmark data for the given symbol.
-    full=True: backfill from BACKFILL_DAYS ago.
+    full=True: fetch from Binance's earliest available data (epoch 0 start).
     full=False: sync last 3 days only.
     """
     today = date.today()
     if full:
-        start_date = today - timedelta(days=BACKFILL_DAYS)
+        start_ms = 0  # let Binance return from its earliest available candle
     else:
-        start_date = today - timedelta(days=3)
-
-    start_ms = _date_to_ms(start_date)
+        start_ms = _date_to_ms(today - timedelta(days=3))
     # end is tomorrow 00:00 UTC so we get today's closed candle
     end_ms = _date_to_ms(today + timedelta(days=1))
 
-    logger.info("Fetching %s klines from %s (full=%s)", symbol, start_date, full)
+    logger.info("Fetching %s klines from %s (full=%s)", symbol, "epoch" if full else today - timedelta(days=3), full)
     klines = await fetch_klines(symbol, start_ms, end_ms)
 
     if not klines:
