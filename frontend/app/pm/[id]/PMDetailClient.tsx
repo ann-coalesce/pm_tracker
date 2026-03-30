@@ -9,6 +9,14 @@ import UpdateStatusModal from '../../components/UpdateStatusModal'
 import PMFormModal from '../../components/PMFormModal'
 import { getPM, getPMMetrics, getPMEquityCurve, getPMStatusLog, updatePMStatus, updatePM, getLeverageHistory, addLeverageHistory, getReturnSources, syncNav, deleteSelfReported, getBenchmarkEquityCurve } from '../../lib/api'
 import type { PM, PMMetrics, PMMetricsResponse, EquityCurvePoint, BenchmarkPoint, PMStatusLog, PMStatus, PMUpdate, LeverageHistory, ReturnSource, SyncResult } from '../../lib/types'
+import { BENCHMARK_COLORS } from '../../components/LineChart'
+
+const BENCHMARKS: { key: string; apiSymbol: string; label: string }[] = [
+  { key: 'BTC',   apiSymbol: 'BTCUSDT', label: 'BTC'   },
+  { key: 'ETH',   apiSymbol: 'ETHUSDT', label: 'ETH'   },
+  { key: 'SPX',   apiSymbol: 'SPX',     label: 'SPX'   },
+  { key: 'CCI30', apiSymbol: 'CCI30',   label: 'CCI30' },
+]
 
 const fmt  = (n: number | null, d = 1) => n == null ? '—' : (n * 100).toFixed(d) + '%'
 const fmtR = (n: number | null, d = 2) => n == null ? '—' : n.toFixed(d)
@@ -39,8 +47,16 @@ export default function PMDetailClient() {
   const [returnType, setReturnType] = useState('actual')
   const [timeRange, setTimeRange] = useState('all')
   const [activeTab, setActiveTab] = useState('overview')
-  const [showBtc, setShowBtc] = useState(false)
-  const [btcCurve, setBtcCurve] = useState<BenchmarkPoint[]>([])
+  const [activeBenchmarks, setActiveBenchmarks] = useState<Set<string>>(new Set())
+  const [benchmarkCurves, setBenchmarkCurves] = useState<Record<string, BenchmarkPoint[]>>({})
+
+  const toggleBenchmark = (key: string) => {
+    setActiveBenchmarks(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
@@ -118,31 +134,45 @@ export default function PMDetailClient() {
     })
   }, [returnSources, slicedCurve])
 
-  // Fetch BTC benchmark curve aligned to PM curve's first date
+  // Fetch benchmark curves for active benchmarks, aligned to PM's first visible date
   useEffect(() => {
-    if (!showBtc || !id || !slicedCurve.length) { setBtcCurve([]); return }
+    if (!id || !slicedCurve.length) return
     const startDate = slicedCurve[0].date
-    getBenchmarkEquityCurve('BTCUSDT', { start_date: startDate }).then(setBtcCurve).catch(() => setBtcCurve([]))
-  }, [showBtc, slicedCurve, id]) // eslint-disable-line react-hooks/exhaustive-deps
+    for (const b of BENCHMARKS) {
+      if (activeBenchmarks.has(b.key)) {
+        getBenchmarkEquityCurve(b.apiSymbol, { start_date: startDate })
+          .then(data => setBenchmarkCurves(prev => ({ ...prev, [b.key]: data })))
+          .catch(() => setBenchmarkCurves(prev => ({ ...prev, [b.key]: [] })))
+      } else {
+        setBenchmarkCurves(prev => { const { [b.key]: _removed, ...rest } = prev; void _removed; return rest })
+      }
+    }
+  }, [activeBenchmarks, slicedCurve, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const btcAligned = useMemo(() => {
-    if (!showBtc || !btcCurve.length || !slicedCurve.length) return undefined
-    const btcMap = new Map(btcCurve.map(p => [p.date, p.nav]))
-    const btcBase = btcCurve[0].nav || 1
-    let lastNav = 1.0
-    return slicedCurve.map(p => {
-      const nav = btcMap.get(p.date)
-      if (nav !== undefined) lastNav = nav / btcBase
-      return lastNav
-    })
-  }, [showBtc, btcCurve, slicedCurve])
+  const benchmarkAligned = useMemo(() => {
+    const result: Record<string, number[]> = {}
+    if (!slicedCurve.length) return result
+    for (const b of BENCHMARKS) {
+      const bCurve = benchmarkCurves[b.key]
+      if (!activeBenchmarks.has(b.key) || !bCurve?.length) continue
+      const bMap = new Map(bCurve.map(p => [p.date, p.nav]))
+      const base = bCurve[0].nav || 1
+      let last = 1.0
+      result[b.key] = slicedCurve.map(p => {
+        const nav = bMap.get(p.date)
+        if (nav !== undefined) last = nav / base
+        return last
+      })
+    }
+    return result
+  }, [activeBenchmarks, benchmarkCurves, slicedCurve])
 
   const series = useMemo(() => ({
     main: slicedCurve.map(p => returnType === 'std' ? p.std_nav : p.nav),
     dates: slicedCurve.map(p => p.date),
     sources: sourceMarkers,
-    btc: btcAligned,
-  }), [slicedCurve, returnType, sourceMarkers, btcAligned])
+    benchmarks: benchmarkAligned,
+  }), [slicedCurve, returnType, sourceMarkers, benchmarkAligned])
 
   if (loading) return (
     <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -278,16 +308,21 @@ export default function PMDetailClient() {
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={() => setShowBtc(v => !v)}
-                  style={{
-                    padding: '4px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                    border: `1px solid ${showBtc ? '#f59e0b' : '#374151'}`,
-                    background: showBtc ? '#2a1f00' : 'transparent',
-                    color: showBtc ? '#f59e0b' : '#9ca3af',
-                  }}>
-                  BTC
-                </button>
+                {BENCHMARKS.map(b => {
+                  const on = activeBenchmarks.has(b.key)
+                  const color = BENCHMARK_COLORS[b.key]
+                  return (
+                    <button key={b.key} onClick={() => toggleBenchmark(b.key)}
+                      style={{
+                        padding: '4px 10px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                        border: `1px solid ${on ? color : '#374151'}`,
+                        background: on ? `${color}22` : 'transparent',
+                        color: on ? color : '#9ca3af',
+                      }}>
+                      {b.label}
+                    </button>
+                  )
+                })}
                 {pm.nav_table_key && (
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {syncResult && !syncError && (
@@ -331,15 +366,15 @@ export default function PMDetailClient() {
                       Source change
                     </span>
                   )}
-                  {showBtc && btcAligned && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af' }}>
-                      <svg width="20" height="10" style={{ display: 'block' }}><line x1="0" y1="5" x2="20" y2="5" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="5,3" opacity="0.8" /></svg>
-                      BTC
+                  {BENCHMARKS.map(b => activeBenchmarks.has(b.key) && benchmarkAligned[b.key] && (
+                    <span key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ca3af' }}>
+                      <svg width="20" height="10" style={{ display: 'block' }}><line x1="0" y1="5" x2="20" y2="5" stroke={BENCHMARK_COLORS[b.key]} strokeWidth="1.5" strokeDasharray="5,3" opacity="0.8" /></svg>
+                      {b.label}
                     </span>
-                  )}
+                  ))}
                 </div>
                 {series.main.length >= 2
-                  ? <LineChart series={series} showBtc={showBtc} timeRange={timeRange} />
+                  ? <LineChart series={series} timeRange={timeRange} />
                   : <div style={{ color: '#6b7280', fontSize: 13, padding: '20px 16px', textAlign: 'center' }}>No return data available</div>
                 }
               </div>

@@ -1,8 +1,15 @@
 'use client'
 
+export const BENCHMARK_COLORS: Record<string, string> = {
+  BTC:   '#f59e0b',
+  ETH:   '#8b5cf6',
+  SPX:   '#3b82f6',
+  CCI30: '#ec4899',
+}
+
 export interface LineChartSeries {
   main: number[]
-  btc?: number[]
+  benchmarks?: Record<string, number[]>
   dates?: string[]
   sources?: { idx: number; label?: string }[]
 }
@@ -84,12 +91,11 @@ function buildXTicks(
 }
 
 export default function LineChart({
-  series, width = 640, height = 220, showBtc = true, timeRange = 'all',
+  series, width = 640, height = 220, timeRange = 'all',
 }: {
   series: LineChartSeries
   width?: number
   height?: number
-  showBtc?: boolean
   timeRange?: string
 }) {
   const pad = { t: 16, r: 16, b: 32, l: 56 }
@@ -97,7 +103,8 @@ export default function LineChart({
   const H = height - pad.t - pad.b
   if (series.main.length < 2) return null
 
-  const allVals = [...series.main, ...(showBtc && series.btc?.length ? series.btc : [])]
+  const benchmarkArrays = Object.values(series.benchmarks ?? {}).flat()
+  const allVals = [...series.main, ...benchmarkArrays]
   const dataMin = Math.min(...allVals), dataMax = Math.max(...allVals)
 
   // Y axis: multiples of 0.5, 1.0 always included, padded above
@@ -139,8 +146,10 @@ export default function LineChart({
         {yAxisMin <= 1 && yAxisMax >= 1 && (
           <line x1={0} y1={Y(1)} x2={W} y2={Y(1)} stroke="#374151" strokeWidth={1} strokeDasharray="4,3" />
         )}
-        {showBtc && series.btc && series.btc.length > 1 && (
-          <path d={path(series.btc)} fill="none" stroke="#f59e0b" strokeWidth={1.5} opacity={0.6} strokeDasharray="5,3" />
+        {Object.entries(series.benchmarks ?? {}).map(([key, vals]) =>
+          vals.length > 1 && (
+            <path key={key} d={path(vals)} fill="none" stroke={BENCHMARK_COLORS[key] ?? '#6b7280'} strokeWidth={1.5} opacity={0.7} strokeDasharray="5,3" />
+          )
         )}
         <path d={path(series.main)} fill="none" stroke="#10b981" strokeWidth={2} />
         {series.sources?.map((seg, i) => (

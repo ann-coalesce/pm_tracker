@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.v1.router import router as v1_router
-from app.core.benchmark_sync import sync_benchmark
+from app.core.benchmark_sync import sync_benchmark, sync_spx, sync_cci30
 from app.core.database import engine
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,10 @@ async def lifespan(app: FastAPI):
             id=f"benchmark_daily_sync_{symbol}",
             replace_existing=True,
         )
+    scheduler.add_job(sync_spx,   "cron", hour=1, minute=0, kwargs={"days": 3}, id="benchmark_daily_sync_SPX",   replace_existing=True)
+    scheduler.add_job(sync_cci30, "cron", hour=1, minute=0, kwargs={"days": 3}, id="benchmark_daily_sync_CCI30", replace_existing=True)
     scheduler.start()
-    logger.info("APScheduler started, benchmark sync scheduled at 01:00 UTC daily for BTC/ETH/SOL")
+    logger.info("APScheduler started, benchmark sync scheduled at 01:00 UTC daily for BTC/ETH/SOL/SPX/CCI30")
     yield
     # shutdown
     scheduler.shutdown(wait=False)
