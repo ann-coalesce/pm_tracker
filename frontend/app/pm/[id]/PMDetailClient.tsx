@@ -97,11 +97,16 @@ export default function PMDetailClient() {
 
   const slicedCurve = useMemo(() => {
     if (!curve.length) return curve
-    const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365, all: Infinity }
-    const n = days[timeRange] ?? Infinity
-    if (n === Infinity) return curve
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - n)
-    return curve.filter(p => new Date(p.date) >= cutoff)
+    const days: Record<string, number> = { '3M': 90, '6M': 180, '1Y': 365 }
+    const n = days[timeRange]
+    const sliced = n
+      ? (() => { const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - n); return curve.filter(p => new Date(p.date) >= cutoff) })()
+      : curve
+    if (!sliced.length) return sliced
+    // Rebase so the first visible point = 1.0 for both actual and std
+    const baseNav = sliced[0].nav
+    const baseStd = sliced[0].std_nav || 1
+    return sliced.map(p => ({ ...p, nav: p.nav / baseNav, std_nav: p.std_nav / baseStd }))
   }, [curve, timeRange])
 
   const sourceMarkers = useMemo(() => {
@@ -123,10 +128,11 @@ export default function PMDetailClient() {
   const btcAligned = useMemo(() => {
     if (!showBtc || !btcCurve.length || !slicedCurve.length) return undefined
     const btcMap = new Map(btcCurve.map(p => [p.date, p.nav]))
-    let lastNav = btcCurve[0].nav
+    const btcBase = btcCurve[0].nav || 1
+    let lastNav = 1.0
     return slicedCurve.map(p => {
       const nav = btcMap.get(p.date)
-      if (nav !== undefined) lastNav = nav
+      if (nav !== undefined) lastNav = nav / btcBase
       return lastNav
     })
   }, [showBtc, btcCurve, slicedCurve])

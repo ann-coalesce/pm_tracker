@@ -1,10 +1,10 @@
 """Fetch benchmark OHLCV from Binance public API and upsert into benchmark_daily."""
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import httpx
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.database import AsyncSessionLocal
@@ -45,8 +45,12 @@ async def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[dict]:
     return rows
 
 
+def _date_to_ms(d: date) -> int:
+    return int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp() * 1000)
+
+
 def _ms_to_date(ms: int) -> date:
-    return date.fromtimestamp(ms / 1000)
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date()
 
 
 async def sync_benchmark(symbol: str = "BTCUSDT", full: bool = False) -> dict:
@@ -61,9 +65,9 @@ async def sync_benchmark(symbol: str = "BTCUSDT", full: bool = False) -> dict:
     else:
         start_date = today - timedelta(days=3)
 
-    start_ms = int(start_date.strftime("%s")) * 1000
+    start_ms = _date_to_ms(start_date)
     # end is tomorrow 00:00 UTC so we get today's closed candle
-    end_ms = int((today + timedelta(days=1)).strftime("%s")) * 1000
+    end_ms = _date_to_ms(today + timedelta(days=1))
 
     logger.info("Fetching %s klines from %s (full=%s)", symbol, start_date, full)
     klines = await fetch_klines(symbol, start_ms, end_ms)
