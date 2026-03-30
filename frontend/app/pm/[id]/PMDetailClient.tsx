@@ -466,7 +466,7 @@ export default function PMDetailClient() {
                     ['Exposure Profile', pm.exposure_profile],
                     ['Trading Horizon',  pm.trading_horizon],
                     ['Strategy Type',    pm.strategy_type],
-                    ['Leverage',         pm.leverage_target != null ? `${pm.leverage_target}x` : null],
+                    ['Leverage',         (() => { const cur = leverageHistory.find(h => h.end_date == null); return cur ? `${cur.leverage}x (from leverage history)` : null })()],
                     ['Max Capacity',     fmtM(pm.max_capacity)],
                     ['Current AUM',      fmtM(pm.current_aum)],
                     ['GP Commitment',    fmtM(pm.gp_commitment)],

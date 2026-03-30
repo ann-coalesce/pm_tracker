@@ -35,7 +35,6 @@ class PMUpdate(BaseModel):
     style: Optional[str] = None
     max_capacity: Optional[Decimal] = None
     current_aum: Optional[Decimal] = None
-    leverage_target: Optional[Decimal] = None
     exposure_profile: Optional[str] = None
     trading_horizon: Optional[str] = None
     exchanges: Optional[list[str]] = None

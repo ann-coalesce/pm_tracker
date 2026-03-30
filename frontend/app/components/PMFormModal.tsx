@@ -61,7 +61,7 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
         exposure_profile: form.exposure_profile || undefined,
         trading_horizon: form.trading_horizon || undefined,
         strategy_type: form.strategy_type || undefined,
-        leverage_target: form.leverage_target ? Number(form.leverage_target) : undefined,
+        ...(!isEdit && { leverage_target: form.leverage_target ? Number(form.leverage_target) : undefined }),
         max_capacity: form.max_capacity ? Number(form.max_capacity) : undefined,
         current_aum: form.current_aum ? Number(form.current_aum) : 0,
         gp_commitment: form.gp_commitment ? Number(form.gp_commitment) : undefined,
@@ -137,11 +137,13 @@ export default function PMFormModal({ pm, onClose, onSave }: Props) {
 
         <div style={{ marginBottom: 28 }}>{sec('Fund Info')}
           <div style={grid}>
-            <div>
-              <label style={lbl}>Leverage Target</label>
-              <input style={inp} type="number" step="0.1" min="0.1" value={form.leverage_target} onChange={e => set('leverage_target', e.target.value)} />
-              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Std return = actual ÷ leverage</div>
-            </div>
+            {!isEdit && (
+              <div>
+                <label style={lbl}>Leverage Target</label>
+                <input style={inp} type="number" step="0.1" min="0.1" value={form.leverage_target} onChange={e => set('leverage_target', e.target.value)} />
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Std return = actual ÷ leverage</div>
+              </div>
+            )}
             <div>
               <label style={lbl}>Max Capacity (USDT M)</label>
               <input style={inp} type="number" value={form.max_capacity} onChange={e => set('max_capacity', e.target.value)} placeholder="e.g. 100" />
